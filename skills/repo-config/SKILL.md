@@ -37,7 +37,7 @@ description: 在已绑定的脚本仓里组织目录、写 config.yaml / pages�
 | 哪些平台 | 一平台一条应用（一个 key、一个 `platform`）。「安卓 + iOS」= 两条 |
 | 环境名 | 与项目一致（如 `test` / `pre` / `prod`）；不知就问 |
 | 各环境身份 | Android `package`；iOS `bundle_id`；Web `url`。不同则用 `envs` |
-| 可选 `otp.code` | 仅测试环境有固定码时再写 |
+| 登录 / 接码策略 | 不写脚本仓；在 Nexus `resource_env_set` 中配置 |
 
 收集齐并复述确认后：
 
@@ -54,9 +54,10 @@ description: 在已绑定的脚本仓里组织目录、写 config.yaml / pages�
 
 | 路径 | 放什么 | 判断标准 |
 |---|---|---|
-| `config.yaml` | 被测应用清单：key、平台、各环境的包名 / bundle id / URL、可选 `otp.code` | 只放应用身份与取码声明，不放账号密码 |
+| `config.yaml` | 被测应用清单：key、平台、各环境的包名 / bundle id / URL | 只放应用身份，不放账号、验证码策略或自动新增配置 |
 | `pages/<APP_KEY>/<page_key>.yaml` | 某个应用的页面：状态锚点、控件、各渠道 locator | 只描述“页面是什么”，不含动作；一个应用一个子目录 |
 | `tests/<需求ID>/<case_id>.py` | 用例，`def run(case)` | 一条用例一个文件；不写平台后缀 |
+| `tests/<需求ID>/<case_id>.yaml` | 该用例原文快照：source、preconditions、steps、expectations，可选 account_requirements | 新转换用例必须固定版本；格式见 analyze-test-case，运行时按 source_ref 留证 |
 | `flows/<name>.py` | 业务流程：登录、进入某页、下单；多个用例复用 | 函数接收 `app`，编排设备动作 |
 | `scripts/<name>.py` | 纯逻辑：数据处理、格式转换、计算 | 入参出参是普通数据，不碰设备 |
 | `pretest.py` / `posttest.py` | 项目级前后置钩子 | 可选 |
@@ -76,9 +77,7 @@ apps:
   baidu_android:
     platform: android
     envs:
-      test:
-        package: com.example.baidu.test
-        otp: {code: "123456"}    # 可选固定验证码；不写则取码时要问人
+      test: {package: com.example.baidu.test}
       prod: {package: com.example.baidu}
   baidu_web:
     platform: web
@@ -100,29 +99,33 @@ apps:
 | `mac` | `bundle_id` | bundle id |
 | `win` | `package` | EXE 路径或 AUMID |
 
-### 固定验证码 `otp.code`
+### 登录、验证码与自动补号由 Nexus 下发
 
-| 写法 | 含义 |
-|---|---|
-| 不写 `otp`，或不写 `otp.code` | 没有固定码；`case.scout.otp(...)` 会 `otp_requires_human`，agent 停下向人要本次验证码 |
-| `otp: {code: "123456"}` | 直接用这个固定码（仅适合测试环境、可轮换的号） |
+不要在脚本仓写登录方式、验证码策略、Gmail 收件箱、手机号/Gmail 别名起始序号或“是否自动补号”。这些属于 **Nexus 项目环境配置**，由 `resource_env_get` / `resource_env_set` 读取和维护：
 
-`otp` 可写在应用顶层，或写在某个 `envs.<环境>` 里（与包名 / URL 一起按环境合并）。**同步给 Nexus 时不要带 `otp`**（会被拒绝）；它只留在 Git，由 Scout 拉取后读取。
+- `login_policies[].secrets.<env>.login.kind` 决定手机号或邮箱登录；
+- `login_policies[].secrets.<env>.otp` 决定 fixed / Gmail / hitl / auto；
+- `gmail_inbox.address` 提供 Gmail 收件箱；
+- `login_policies[].phone_seq` / `gmail_alias` 提供自动新增账号的起始与下一次序号。
+
+号池没有可用且匹配登录身份的账号时，Nexus 自动新增账号，不让脚本仓控制这个开关。脚本只调用 `case.nexus.account()` 租号、`case.scout.otp(account)` 取码，不读仓库密码或接码配置。
+
+`otp.code` 只作为旧仓库兼容兜底，不属于新项目配置方式；新项目和新增应用不要再写。
 
 规则：
 
 - 值从用户给的信息、用例前置条件或已有 `config.yaml` 里取；**拿不到包名 / URL / 环境就问用户，不要猜**（问法见 §0）；
 - 已有应用的 key 不要改，改了会让 `pages/` 目录和已有用例对不上；
-- 不放账号、密码、token（账号由 Nexus 号池租用）；测试用固定验证码仅可写在 `otp.code`；
+- 不放账号、密码、token、登录方式或验证码策略（账号由 Nexus 号池租用，策略由 Nexus 项目环境配置下发）；
 - 新增应用 = 先按 §0 问齐 → `config.yaml` + `pages/<KEY>/` → `mino-scout check .` → push → `repo_apps_sync`；**仅 `app_create` 不算完成**；  
 - **禁止**在用户未明确要求时创建远程 Git 仓库；
 - 应用的 `platform` 必须等于本次运行的设备平台；一条应用只对应一个 platform；
 - 本次运行的环境由 Nexus 决定，脚本里是 `case.env`，一般不需要判断；`config.yaml` 里声明的环境名必须能对上项目里已有环境；
-- 这是应用地址与固定码的唯一真源，由 Scout 读取；Workbench 里的包名 / URL 只读展示，要改就改这个文件并 push，再按下面的约定同步给 Nexus。
+- 这是应用 key、平台和包名 / bundle id / URL 的唯一真源；Workbench 里的包名 / URL 只读展示，要改就改这个文件并 push，再按下面的约定同步给 Nexus。
 
 ## 3. 改了 config.yaml 必须同步给 Nexus
 
-Nexus 不读脚本仓库（仓库可能是私有的），它只能靠你告诉它“这个项目的仓库能跑哪些应用”，Workbench 的“脚本仓库应用”和选应用都依赖这份同步。所以**只要新增、删除或修改了 `config.yaml` 里的应用或环境**（不含仅改 `otp.code` 也可同步身份字段；但 **sync 载荷里绝不能带 `otp`**），在 push 之后：
+Nexus 不读脚本仓库（仓库可能是私有的），它只能靠你告诉它“这个项目的仓库能跑哪些应用”，Workbench 的“脚本仓库应用”和选应用都依赖这份同步。所以**只要新增、删除或修改了 `config.yaml` 里的应用或环境**，在 push 之后：
 
 1. 取 push 后的提交：`git rev-parse HEAD`；
 2. 调 MCP 工具 `repo_apps_sync(project_id, revision=<sha>, branch=<分支>, apps=<本次新增或修改的应用>, remove=<本次删除的应用 key>)`。这是差异更新：只传变化的应用（取自 `config.yaml` 的 **platform / package / bundle_id / url / envs**，**去掉 `otp`**，不要自己编 `app_id`），没传的应用保持不变；删除应用要显式放进 `remove`；
@@ -133,7 +136,7 @@ Nexus 不读脚本仓库（仓库可能是私有的），它只能靠你告诉�
 - 先 push 再同步，同步的 `revision` 必须是已 push 的提交；
 - 未带 `app_id` 时 Nexus 按 key 对齐项目里已有同名应用，或自动创建；
 - 同步被拒绝（key 命名、platform、字段不合法、误传 otp）就按报错改，改好重新 push 再同步；
-- 只改了脚本、没动应用身份字段，不需要同步；只改了 `otp.code`、身份字段没变，也不需要同步；
+- 只改了脚本、没动应用身份字段，不需要同步；
 - 新项目第一次写好 `config.yaml` 后也要同步一次。
 
 ## 4. 页面文件

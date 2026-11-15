@@ -24,7 +24,7 @@ mkdir -p "$DEST"
 # 先清掉旧的同名技能与版本文件（含误建的软链）
 rm -rf "$DEST"/VERSION "$DEST"/CHANGELOG.md \
   "$DEST"/overview "$DEST"/onboarding "$DEST"/repo-config \
-  "$DEST"/write-test-cases "$DEST"/check-test-cases \
+  "$DEST"/analyze-test-case "$DEST"/write-test-cases "$DEST"/check-test-cases \
   "$DEST"/run-test-cases "$DEST"/update-skills
 cp "$TMP/mino/VERSION" "$DEST/VERSION"
 cp "$TMP/mino/CHANGELOG.md" "$DEST/CHANGELOG.md"

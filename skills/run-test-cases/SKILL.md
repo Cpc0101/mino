@@ -1,18 +1,17 @@
 ---
 name: run-test-cases
-description: 用本机 mino-scout 确认节点就绪后，通过 Nexus MCP 触发已写好的用例、读任务结果并在对话里汇报。用户要求跑用例、看任务状态、查失败原因时使用。写脚本见 write-test-cases。
+description: 通过 Nexus 运行已写好的用例，读取执行 Scout 的记录和证据并汇报。用于跑用例、跟进任务或分析失败，区分接单、执行、断言和证据暂不可用。
 ---
 
 # 执行用例并汇报
 
-**触发与读结果用 MCP；本机是否能跑先用 `mino-scout` CLI 看。**  
-Nexus 管任务 / 设备租约 / 会话；Scout 在用户电脑拉仓执行。测试报告不用另写：`case.nexus.do/check` 已写入会话，对话里只做简要结论 + Workbench 链接。
+**触发与读结果用 MCP；本机 Scout 运维用 CLI。** Nexus 管任务索引、设备/账号租约和状态投影；Scout 拉仓、独立执行并保存完整记录。Workbench 从 Nexus 取列表，经 Nexus 转发读取原执行 Scout 的详情。临时 Git workspace 删除后，记录和截图仍保留。
 
 开跑前用一两句话告诉用户：将跑哪些用例、哪台设备、哪个环境。
 
 ## 1. 执行
 
-0. **本机就绪（CLI）**：在 Scout 所在机（通常就是当前机）跑 `mino-scout`（或 `status`）与 `mino-scout probe`。服务没起来、目标平台设备不在 `probe` 里 → 先回 `onboarding` 门禁 3，不要硬 `case_run`。  
+0. **确认执行节点**：先区分当前机与所选设备所属 Scout。本机 Scout 用 `mino-scout status` / `probe` 核验；远端节点以 Nexus 返回的节点/设备事实为准，不用当前机 CLI 状态推断远端。新记录流程需要执行 Scout 支持 `record_api_version=1`，缺能力时按节点升级流程处理。
 1. **应用清单（MCP）**：`repo_apps_get(project_id)`；应用不在清单或 `revision` 落后刚 push 的提交 → `repo-config` §3。无 `repo_url` → `onboarding` 门禁 4 绑仓（`project_script_repo_set`），不要新建无关远程仓。  
 2. 选设备：调 `device_list`（带 `app_id`、`env_profile`，用例指定了渠道就带 `env_surface`），拿到**当前账号名下**的设备实时列表，不要复用旧结果。看这几个字段：
 
@@ -44,7 +43,8 @@ Nexus 管任务 / 设备租约 / 会话；Scout 在用户电脑拉仓执行。�
    ```
 
    `case_ids` 为空表示该需求目录下全部脚本。未登记需求先 `requirement_save`。Nexus 不拉仓；Scout 用本机 git 凭据拉。
-5. 轮询 `task_get(task_id)`，间隔 ≥5s；终态即停；证据用 `session_events`。
+5. 记录返回的 task_id、case/session/attempt 与原执行 node_id，轮询 `task_get`，间隔 ≥5s。Scout 接单 `accepted`、Nexus queued/running 都不是测试通过。同一 attempt 重复投递不执行第二次；修改脚本后的受控重跑是新 attempt，不能覆盖前次证据。
+6. 证据用 `session_events`，按返回的 `next_seq` 继续读取，不能只看第一页。截图用 `session_screenshot`；大节点树/原文快照可能在 JSON artifact 中，使用 `session_artifact` 按 offset/length 分段读取并核对 MIME、长度、哈希。RPC `record.*` 是 Nexus 与 Scout 之间的内部契约，不假设它们是已安装的 MCP 工具。
 
 | `task_get.status` | 动作 |
 |---|---|
@@ -52,7 +52,7 @@ Nexus 管任务 / 设备租约 / 会话；Scout 在用户电脑拉仓执行。�
 | `running` | 可读事件；不打断、不改脚本 |
 | `pass` | 汇报通过 |
 | `fail` | 先看 `cases[].status` 和 `reason_code`，再归因 |
-| `blocked` | 看 `resource_isolated`；需要时 baseline |
+| `blocked` | 区分缺信息、无有效断言、节点断线或资源隔离；依据 reason_code 处理 |
 | `cancelled` | 报告取消；不擅自重跑 |
 
 任务级只有这几种状态。Scout 的 `declined` / `skipped` 在任务级聚合为 `fail`，区分在 `cases[].status`：
@@ -64,12 +64,16 @@ Nexus 管任务 / 设备租约 / 会话；Scout 在用户电脑拉仓执行。�
 | `fail` | 失败，给失败的 do/check 标题 |
 | `blocked` | 阻塞，说明等人还是等资源 |
 
-禁止：并发对同一 `case_id + sn` 重复 `case_run`；看到 `fail` 就自动重跑。
+禁止并发对同一 `case_id + sn` 重复运行、因 ACK 丢失创建新任务、或看到 fail 就盲目重跑。先读证据；脚本修复后在已授权范围内创建新 attempt，并说明改动及恢复到的前置。
+
+取消请求只是 `cancel_requested`；等执行进程确实停止才报告 cancelled。即使 cancelled，`resource_isolated=true` / `execution_started=unknown` 仍表示最后写入结果需要核验。
 
 ## 2. 读结果
 
 - `task_get`：`status`、`cases[]`、`pass_rate`、`resource_isolated`；
-- `session_events`：字段含义以实际返回为准。`tool/call` 与 `tool/result` 成对，`tool/result` 的 `app` 标明是哪个应用的动作，`node/enter`、`node/leave` 对应脚本里的 do/check 标题。`capability_id=hierarchy` 的 `nodes`（没有则 `hierarchy_text`）是这次 Scout 读到的界面结构，写页面定位只用它；截图用 `session_screenshot`。
+- `session_events`：新记录返回 items（seq/ts/type/payload）、next_seq、high_watermark、has_more、sealed。`node/enter` / `node/leave` 对应作用域；动作有 `tool/call` / `tool/result`；有效断言是 `assertion/result`。按 source_ref/source_hash/step_id/observation_id 关联原文和证据，截图用 artifact_id。字段以实际返回为准，保留旧会话兼容。
+- `run/snapshot` 保存本次原文 sidecar、配置的脱敏快照与文件哈希。归因使用本次 snapshot，不拿后来修改的仓库内容替代历史原文。
+- 执行 Scout 离线时，Nexus 可能仍显示最后同步结论；详情返回暂不可用。明确说明原节点和最后同步时间，不把空响应当作“没有错误”，不把离线当作测试失败，也不改用另一节点的记录。
 
 需要特别处理的 `reason_code`：
 
@@ -79,22 +83,26 @@ Nexus 管任务 / 设备租约 / 会话；Scout 在用户电脑拉仓执行。�
 | `method_unknown` | 方法名写错，报错里有最相近的名字；改脚本 |
 | `config_missing` | 脚本仓库的 `config.yaml` 缺这个应用或这个环境，见 `repo-config` |
 | `app_not_in_repo_config` | Nexus 里没有同步这个应用，见 `repo-config` §3 |
-| `otp_requires_human` | 账号无自带码且 `config.yaml` 未写 `otp.code`；向用户要本次验证码，或写入测试用 `otp.code` 后 push 再跑 |
+| `otp_requires_human` | 账号无自带码，且 Nexus 项目环境配置没有可用的 fixed/Gmail 策略；先检查 `resource_env_get`，由 `resource_env_set` 修正策略后重跑，不要把验证码策略写进脚本仓 |
 | `vlm_failed` | 视觉判定未通过，看 `script/note` 和截图，再判断是产品问题还是判定词问题 |
 | `revision_missing` | Scout 在仓库里取不到这个提交：确认已 push；不要回退到分支最新 |
 | `repo_unavailable` | 设备所在电脑拉不到仓库：本机没有 git，或没有该仓库的 git 凭据；让用户处理那台电脑 |
 | `script_missing` / `script_ambiguous` | 仓库里找不到或有多份 `tests/**/<case_id>.py` |
-| `write_outcome_unknown` | 保持隔离；baseline 只释放资源；汇报 blocked |
+| `assertion_missing` / `check_empty` | 记录存在，但没有完成有效预期验证；补注册断言，探路采集不得计入通过 |
+| `source_coverage_missing` | 对照 snapshot.source_ref 补缺失实现；不删除原文预期消除错误 |
+| `node_disconnected` / `scout_restarted` / `worker_interrupted` | 读取最后持久记录，确认执行边界；不自动重放 |
+| `record_not_found` / `evidence_temporarily_unavailable` | 区分记录不存在与原 Scout 离线；不输出通过结论 |
+| `write_outcome_unknown` | 保持隔离，先获取可确认的停止与设备状态证据 |
 
 其余按返回的 `summary` 原样转述。脚本问题改完要回到 `write-test-cases` 和 `check-test-cases`，重新 push 再跑。
 
 ### 隔离
 
-`resource_isolated=true` 时调用 `task_write_safety_baseline(task_id)`，它补拍并释放设备 / 账号租约；原任务结论不变，汇报里同时写“已释放”和“结论仍为 blocked”；截图失败就继续隔离，不手工释放。
+`resource_isolated=true` 时保留隔离。若实际服务提供 `task_write_safety_baseline`，按其返回确认是否满足停止与释放条件；不能仅凭一次截图或“任务已终态”宣称租约释放。恢复动作不改变历史断言结论；未确认释放时明确报告仍隔离。
 
 ## 3. 在对话里怎么汇报
 
-简短，四件事：**结论**（几条通过）、**失败的是哪个 do/check 标题和原因**、**归因**（产品缺陷 / 脚本问题 / 环境问题）、**Workbench 链接**。有环境信息就带上平台、设备、App 版本、revision。
+简短说明：用例数及实际通过/失败/阻塞/未执行数；失败的原文条目和作用域；归因依据及不确定处；Workbench report_url。带上环境、原执行 Scout、revision 和 attempt 标识。优先使用服务返回的 report_url，不猜链接。
 
 规则：
 

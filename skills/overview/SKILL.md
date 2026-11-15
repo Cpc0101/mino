@@ -5,14 +5,14 @@ description: 了解 Mino 是什么、Scout / Nexus / Workbench / Agent 各管什
 
 # Mino 总览
 
-Mino 是自动化测试系统：AI 写脚本，真机 / 浏览器执行并留证据。四端各管一件事，**互相不越界**。
+Mino 是自动化测试系统。当前重点是把已有人工用例转换成可靠、可复用的自动化脚本，并让每个结论能追溯原文和执行证据。
 
 | 端 | 是什么 | 负责 | 不负责 |
 |---|---|---|---|
-| **Nexus** | 云端（`https://nexus.minocc.top`） | 项目 / 应用 / 需求元数据、设备与账号、任务派发、事件存储；对 Workbench 与 agent（MCP）供数 | 写脚本；拉 Git；操作设备；存 Git 令牌 |
-| **Scout** | 本机执行器（`mino-scout`） | 连 Nexus、拉脚本仓、跑脚本、操作设备、截图取证、本机取码 / 调模型 | 选用例；决定“下一步测什么” |
-| **Workbench** | 网页（`https://workbench.minocc.top`） | 给人看的管理与证据；注册 / OAuth | 写脚本；替 agent 申请安装命令或建项目 |
-| **Agent** | 对话侧 | 按技能问清 → MCP 装 Scout / 建项目绑仓 → 写仓 → CLI 自检 → 触发跑数；每步告知用户 | 擅自建远程仓、猜包名 / URL、让用户手抄安装命令 |
+| **Nexus** | 云端（`https://nexus.minocc.top`） | 项目/应用/需求元数据、账号池、设备租约、任务派发、状态索引、转发记录读取 | 写脚本；拉 Git；操作设备；长期保存完整执行明细和截图 |
+| **Scout** | 执行器（`mino-scout`） | 连 Nexus、拉仓、独立进程执行、操作设备、断言和截图；按 task_id 持久保存完整记录，重连补报摘要 | 自行扩展测试范围；决定下一条测什么 |
+| **Workbench** | 网页（`https://workbench.minocc.top`） | 从 Nexus 取任务列表，通过 Nexus 读取原执行 Scout 的详情，展示原文/动作/断言/证据 | 替代 Scout 执行或存储原始事实 |
+| **Agent** | 对话侧 | 分析已有用例 → 固定原文 → 编写 Python/页面/流程 → 静态校验 → 真机验证 → 有证据地归因和交付 | 擅自新建远程仓、猜环境和定位、把采集或接单说成测试通过 |
 
 本地状态在 `~/.mino/`。Scout 主动连 Nexus，不开放监听端口。
 
@@ -41,8 +41,11 @@ Mino 是自动化测试系统：AI 写脚本，真机 / 浏览器执行并留证
 1. 项目 + 脚本仓绑定 + 应用清单就绪（`onboarding` / `repo-config`）；
 2. agent 在本机写脚本并 `mino-scout check`，再 push；
 3. 改了 `config.yaml` 应用身份 → `repo_apps_sync`；
-4. MCP `case_run` → Nexus 把仓地址 / 提交 / 设备下给 Scout；
-5. Scout 本机拉仓执行，证据回 Nexus；对话里简要汇报。
+4. MCP `case_run` → Nexus 将固定仓提交、设备与 task/session/attempt 下发给 Scout；
+5. Scout 持久接单后异步执行，完整记录保留本机，摘要经持久 ACK 同步到 Nexus；
+6. Agent/Workbench 通过 Nexus 读取原 Scout 记录。只采集、静态通过、动作走通、预期通过分别说明，最后按真实证据交付。
+
+Scout 不开放监听端口。Git 临时 workspace 可以删除，任务记录独立保留；节点离线时详情暂不可读，Nexus 的最后同步状态不能充当实时证据。取消、重连和重试不得重放结果未知的写操作。
 
 ## 该用哪个技能
 
@@ -51,6 +54,7 @@ Mino 是自动化测试系统：AI 写脚本，真机 / 浏览器执行并留证
 | 分工、MCP vs CLI、硬约束 | 本技能 |
 | 注册、接 MCP、**MCP 装 Scout**、`project_create` / 绑仓 / sync | `onboarding` |
 | 改 `config.yaml` / pages、加应用（问齐再写） | `repo-config` |
+| 将已有人工用例整理为可实现、可判定的原文与方案 | `analyze-test-case` |
 | 写用例脚本 | `write-test-cases` |
 | `mino-scout check` | `check-test-cases` |
 | 触发跑数、看任务、汇报 | `run-test-cases` |
