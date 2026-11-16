@@ -24,7 +24,7 @@ mino-scout check --require-cases .
 | `forbidden` | 绕开了 Scout（设备库、`subprocess`、线程、`exec`/`eval`、`if platform`） | 设备动作改用 `app.*`，设备命令改用 `app.exec()`，不要并发，平台差异放 `pages` 的 `locator_spec` |
 | `reuse` | 自己重复实现了 Scout 已有的能力（`time.sleep`、`imaplib`、直接调模型） | 改用 `case.scout.wait()` / `otp(account)` / `llm()` / `app.expect()` |
 | `case_attr` | `case.tap` 之类，`case` 上没有这个成员 | 先 `app = case.init(case.config.<KEY>)`，设备动作写在 `app` 上 |
-| `case_init` | `case.init` 的参数不是 `case.config.<KEY>` | 改成 `case.config.<KEY>` |
+| `case_init` | `case.init` 的第一个参数不是 `case.config.<KEY>`，或关键字不是 `web_resolution` | 改成 `case.init(case.config.<KEY>)`；仅 Web 分辨率用例可写 `web_resolution="720P|1080P|2K|3K/4K"` |
 | `step_title` | `do` / `check` / `prep` 没有写文字标题 | 写这一步具体做什么的一句话 |
 | `prep_missing` | `tests/` 里的用例没有 `prep` | 写具体准备动作；确实无需准备时写明理由，记录在 Scout |
 | `prep_reason` | 前置标题只有「无」这类空话 | 写清做了什么；确实不用做，就写为什么 |

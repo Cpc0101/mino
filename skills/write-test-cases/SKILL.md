@@ -41,6 +41,25 @@ def run(case):
 
 `case` 上只有 `config`、`env`、`init`、`scout`、`nexus`。`case.tap(...)`、`case.launch()` 这类写法不存在。写错方法名，运行时会报出相近的名字和可用列表，按提示改。
 
+### Web 分辨率属于具体用例
+
+只有 Web 兼容性/分辨率用例才在 `case.init` 上指定 `web_resolution`；它是这个用例文件的执行配置，不是跑批参数。未指定时使用默认 `1080P`：
+
+| 传入值 | 视口 |
+|---|---|
+| `720P` | 1280×720 |
+| `1080P` / `1K` | 1920×1080（默认） |
+| `2K` | 2560×1440 |
+| `3K/4K` | 3840×2160 |
+
+```python
+def run(case):
+    page = case.init(case.config.hi3d_web, web_resolution="2K")
+    page.launch()
+```
+
+分辨率兼容性测试必须**一个分辨率一份用例文件**；该文件按对应视口下的真实 hierarchy、控件位置、换行和显隐状态编写定位与断言。不要在同一脚本里切换分辨率，也不要把一套普通功能用例强行复用到所有分辨率。必要时在 `pages/<APP_KEY>/` 下为该分辨率单独维护页面和控件映射。
+
 ## 2. 步骤事件就是测试报告
 
 `case.nexus` 是保留的脚本 API 名。`prep/do/check/note` 写入 Scout 本地记录；账号租用仍请求 Nexus。Workbench 根据记录展示原文、步骤和证据：
@@ -94,12 +113,13 @@ def run(case):
 - `app.vlm(prompt)` 重新采集**这个应用当前屏幕**，返回模型描述；描述本身不算断言；
 - `app.vlm(prompt, verdict="pass")`：模型判定未通过会直接中止，`reason_code=vlm_failed`；
 - `app.sample(duration_ms, interval_ms)` 连续截图，再用 `app.vlm_frame(i, prompt)` 看第 i 帧；
+- Web 的 `app.screenshot()` 默认 `full_page=True`，截取完整文档；只有明确需要当前视口时才写 `full_page=False`；
 - 原图与完整事件保存在 Scout。Workbench/Agent 按需通过 Nexus 转发读取，Nexus 不长期保存完整截图；
 - `tap_xy` / `drag` 只在控件定位不了、必须依据视觉结果点位置时才用；能用 `pages` 控件就不要用坐标。`vlm` 不返回节点，也不能当成 `locator_spec`。
 
 ## 5. 规则
 
-- `case.init(...)` 的参数只能写 `case.config.<KEY>`，不写字面量包名 / 地址；
+- `case.init(...)` 的第一个参数只能写 `case.config.<KEY>`，不写字面量包名 / 地址；Web 分辨率用例只额外写 `web_resolution="720P|1080P|2K|3K/4K"` 关键字；
 - 多个应用就多个实例，各管各的页面和截图；同一用例里顺序执行，不并行；
 - 控件写 `page_key.control_id`，页面里没有的控件不点；
 - `locator_spec` 的值必须是这台设备当前界面节点上的 `resource_id`、`text` 或 `content_desc`，逐字复制。用例正文、按钮的中文说法、页面 `label` 都不是选择器。没有这份节点时，页面只留 `id` 和 `label`，不要写 `locator_spec`，也不要写对应的 `tap` / `input`；
