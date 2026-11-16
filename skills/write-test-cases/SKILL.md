@@ -41,6 +41,35 @@ def run(case):
 
 `case` 上只有 `config`、`env`、`init`、`scout`、`nexus`。`case.tap(...)`、`case.launch()` 这类写法不存在。写错方法名，运行时会报出相近的名字和可用列表，按提示改。
 
+### 单文件可审性（硬约束）
+
+“一条用例一个文件”不是“一条用例一个 wrapper”。打开 `tests/<需求ID>/<case_id>.py`，必须能直接读完这条用例的原文映射、前置、操作、业务断言和阻塞原因，不能再去集中式 `flows/<name>.py` 才能知道实际测了什么。设计目标是原文条目与本脚本一一可核对，不是减少重复代码。
+
+`run(case)` 是该用例唯一的业务入口：
+
+- 所有 `case.nexus.prep/do/check`、`source_ref`、`case.nexus.assert_equal(...)`、业务预期和该类用例自己的阻塞判断都必须直接写在当前文件的 `run(case)` 中；正常用例至少直接包含 `prep`、`do`、`check` 各一处。
+- 真前置无法建立时，可以在本文件直接写 `prep`、说明具体缺口的 `note`，并调用 `case.nexus.fail(...)` 或抛出 `ScriptAbort`。必须指出这条用例缺什么，不能生成“加载中”“待接入”之类空跑文件凑数量。
+- 禁止把整个业务用例委托给共享函数，例如 `run_articulated_case(case, "UAT-001", prep)`、`run_case(case, case_id)`、`handler_table[case_id](case)`；也禁止 `if case_id == ...`、`match case_id`、`_actual(case_id)` 等按编号分派。
+- 禁止在共享文件维护 `_case_001`、`_case_002` 一类 handler，或 `BLOCKED = {"UAT-001": ...}` 一类中央用例表。一个用例现在做不到，就在该用例文件里直接写真实阻塞原因，或直接向用户报告，不要制造 47 个通用占位 wrapper。
+- `run(case)` 不能只是一个 `with prep` 加一次共享 dispatch。共享 helper 可以在 `with` 块内执行设备动作，但不能替用例发报告、写业务断言、决定用例是否阻塞，也不能知道用例编号。
+
+共享代码只放可复用的设备机制，不放业务编排：
+
+- `flows/<name>.py` 只封装可复用操作机制，例如登录表单填写、滑到底、一组连续输入。函数接收 `app`、页面对象、`case.scout` 或普通值；不得接收整个 `case`，不得调用 `case.nexus.*` 或 `assert_equal`，不得按 `case_id` 改变行为。
+- `scripts/<name>.py` 只做不碰设备的纯计算。它不接收 `case`，不发事件，不发业务断言。
+
+允许的复用边界：
+
+```python
+with case.nexus.do("使用邮箱验证码登录", source_ref="S1"):
+    login(app, case.scout)  # flows 内可以点页面、取 OTP；不能写 check/assert/报告
+
+with case.nexus.check("登录后进入个人主页", source_ref="E1"):
+    app.expect(page="个人主页", prompt="当前显示当前账号的个人主页")
+```
+
+上面的业务步骤、预期归属和断言都在用例文件里；`login()` 只是操作机制。若共享 helper 需要 `case_id` 才知道做什么，它就属于错误的集中式业务实现。
+
 ### Web 分辨率属于具体用例
 
 只有 Web 兼容性/分辨率用例才在 `case.init` 上指定 `web_resolution`；它是这个用例文件的执行配置，不是跑批参数。未指定时使用默认 `1080P`：
@@ -160,7 +189,14 @@ def run(case):
    - 一步做完不要只读一帧。用 `app.sample` 连续截几秒，并在这段时间里多次 `app.hierarchy()`。页面可能过一会儿才换。只凭一次读取就说没进到目标页，证据不够；
    - 用这些节点写 `pages/<APP_KEY>/<page_key>.yaml`，只写测过的 `locator_spec`。文字对得上就用文字。对不上时，截图只用来圈定区域，在该区域节点里选出匹配度最高的定位，再用下一次 `case_run` 核对。截图上的坐标不进页面文件；
    - 把对应用例原文的 `prep` / `do` / `check` 补进脚本，只点页面里已经有定位的控件；
-   - 一步不是单个控件能完成时（登录填表、滑到底再确认、一组连续输入），写成 `flows/<name>.py`，函数接收 `app`，里面仍然只调用 `app.*`。纯计算、不碰设备的逻辑写成 `scripts/<name>.py`。用例里 `from flows...` 或 `from scripts...` 调用。这两处也要随同一轮 `case_run` 调试，不能只留页面文件；
+   - 一步不是单个控件能完成时（登录填表、滑到底再确认、一组连续输入），写成 `flows/<name>.py`，函数接收 `app`、页面对象、`case.scout` 或普通值，里面不写 `case.nexus.*`、业务断言或用例编号。纯计算、不碰设备的逻辑写成 `scripts/<name>.py`。用例里 `from flows...` 或 `from scripts...` 调用。这两处也要随同一轮 `case_run` 调试，不能只留页面文件；
    - 下一屏重复。原文走完后，脚本必须覆盖每一条前置、操作和预期，不能停在只采集界面的版本。`flows` / `scripts` 搞不定的那一步停下来问，不要换一套工具去点。
-6. 写完再按 `run-test-cases` 用同一台设备 `case_run` 调试一遍。`locator_missing`、`control_unknown`、点错控件，回到上一步用这次运行的 hierarchy 改页面，不要按正文重写定位。通过后再向用户汇报。
-7. 原文与实际界面不一致时，保留原文快照，把“原文要求、实际观察、差异、证据引用”写入本地 note 并向用户说明。note 记录事实，不能代替断言或自行认定产品缺陷。能验证的后续条目继续处理；受影响条目保持未覆盖/阻塞，不通过改写原文或删除断言让任务通过。
+6. 在脚本仓根运行 Scout 静态检查：
+
+```bash
+mino-scout check --require-cases .
+```
+
+   `case_isolation` 是 `mino-scout check` 的一种 finding，不是额外安装或单独运行的检查器。它和语法、导入、config、pages、原文映射、断言检查共用同一个英文输出和退出码。出现 `case_isolation` 时，把业务步骤、原文映射、断言和本条用例自己的阻塞路径直接写回当前用例文件，不要新增 wrapper 或集中 dispatcher。这个命令需要 MinoScout `0.1.149+`；静态检查通过后仍需用目标设备执行 `case_run` 验证定位、账号、验证码和业务结果。
+7. 写完再按 `run-test-cases` 用同一台设备 `case_run` 调试一遍。`locator_missing`、`control_unknown`、点错控件，回到上一步用这次运行的 hierarchy 改页面，不要按正文重写定位。通过后再向用户汇报。
+8. 原文与实际界面不一致时，保留原文快照，把“原文要求、实际观察、差异、证据引用”写入本地 note 并向用户说明。note 记录事实，不能代替断言或自行认定产品缺陷。能验证的后续条目继续处理；受影响条目保持未覆盖/阻塞，不通过改写原文或删除断言让任务通过。

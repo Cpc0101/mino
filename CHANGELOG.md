@@ -2,6 +2,15 @@
 
 每个版本写清需要的 Scout / Nexus 版本。技能说的和实际对不上时，先核对这里。
 
+## 0.1.14
+
+- 把单文件业务归属规则并入 `mino-scout check`。仓库中每条用例必须由自己的文件直接承载 `prep/do/check`、原文映射、业务断言和阻塞路径；共享 `flows/`、`scripts/` 只能提供机制或纯计算，不能接收整个 `case`、按用例编号分派、调用 `case.nexus.*` 业务事件或写业务断言。
+- `case_isolation` 现在是 `mino-scout check` 的 finding 类型，并与语法、导入、config、pages、原文映射和断言检查使用同一套英文输出、warning 语义和退出码；不再安装或调用独立的 `check_case_isolation.py`。
+- `check-test-cases` 与 `write-test-cases` 都只要求运行 `mino-scout check --require-cases .`，不再描述“两层检查”或“任意 Python 环境检查器”。该命令需要已安装的 MinoScout CLI，不能脱离 Scout 运行时单独执行用例。
+- 新用例不再创建同名原文 YAML；`CASE_SOURCE` 是唯一的新脚本原文来源。旧 YAML 仅为已有仓库运行时兼容。
+
+需要 MinoScout `0.1.149`。本次不要求 MinoNexus 或 MinoWorkbench 升级。
+
 ## 0.1.13
 
 - `write-test-cases` 新增 Web 分辨率用例配置：`case.init(case.config.<KEY>, web_resolution="2K")`，默认 `1080P`，支持 `720P`、`1080P`/`1K`、`2K`、`3K/4K`。分辨率是具体用例配置，不是跑批参数；一个分辨率一份用例，定位、坐标、显隐和断言按该视口分别维护。
