@@ -198,5 +198,7 @@ mino-scout check --require-cases .
 ```
 
    `case_isolation` 是 `mino-scout check` 的一种 finding，不是额外安装或单独运行的检查器。它和语法、导入、config、pages、原文映射、断言检查共用同一个英文输出和退出码。出现 `case_isolation` 时，把业务步骤、原文映射、断言和本条用例自己的阻塞路径直接写回当前用例文件，不要新增 wrapper 或集中 dispatcher。这个命令需要 MinoScout `0.1.149+`；静态检查通过后仍需用目标设备执行 `case_run` 验证定位、账号、验证码和业务结果。
+
+   **push 门禁是强制要求**：输出中只要还有一条需要解决的问题，就禁止 commit/push。error、未核验的 warning、原文映射缺口、定位/断言缺口都必须先修复并用运行记录确认，然后重新执行 `mino-scout check --require-cases .`；不能带着“已知待验证”项 push。
 7. 写完再按 `run-test-cases` 用同一台设备 `case_run` 调试一遍。`locator_missing`、`control_unknown`、点错控件，回到上一步用这次运行的 hierarchy 改页面，不要按正文重写定位。通过后再向用户汇报。
 8. 原文与实际界面不一致时，保留原文快照，把“原文要求、实际观察、差异、证据引用”写入本地 note 并向用户说明。note 记录事实，不能代替断言或自行认定产品缺陷。能验证的后续条目继续处理；受影响条目保持未覆盖/阻塞，不通过改写原文或删除断言让任务通过。

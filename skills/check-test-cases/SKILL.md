@@ -7,6 +7,16 @@ description: 用 mino-scout check 检查用例的单文件业务归属、Scout A
 
 自检只有一个入口：MinoScout 自带的 `mino-scout check`。单文件隔离规则是它的一种检查类型 `case_isolation`，不是随技能安装的独立 Python 工具，也不是第二套检查流程。
 
+## 推送门禁（强制）
+
+任何脚本仓 push 前都必须在仓库根运行：
+
+```bash
+mino-scout check --require-cases .
+```
+
+输出里只要还有一条需要解决的问题，就禁止 commit/push。先修复并重新运行；动态原文映射、页面定位、断言或业务覆盖需要真实运行时，先完成对应 `case_run`/证据核验再重跑。不得把 error、未核验 warning 或“待运行验证”的缺口留在已 push 的脚本里。
+
 每次修改用例、`CASE_SOURCE`、`config.yaml`、`pages/`、`flows/` 或 `scripts/` 后，在脚本仓根执行：
 
 ```bash
@@ -26,7 +36,7 @@ mino-scout check --require-cases .
 <path>:<line>: [<finding>/warning] <message>
 ```
 
-有 error 时退出码为 1；只有 warning 时静态命令可以通过，但 warning 指向的动态映射、定位或断言仍必须由运行记录核验。
+有 error 时退出码为 1；只有 warning 时静态命令可以通过，但 warning 指向的动态映射、定位或断言仍是待解决问题，必须由运行记录核验并消除后才能 push。
 
 ## 检查类型
 
