@@ -5,7 +5,7 @@ description: 用 mino-scout check 检查用例语法、跨文件引用、原文�
 
 # 自检用例脚本
 
-每次修改用例、原文 sidecar、config、pages 或 flows 后，在仓根检查。初始化只有配置的仓库可用基础检查：
+每次修改用例、CASE_SOURCE 来源变量、config、pages 或 flows 后，在仓根检查。初始化只有配置的仓库可用基础检查：
 
 ```bash
 mino-scout check .
@@ -36,13 +36,13 @@ mino-scout check --require-cases .
 | `page_missing` / `control_unknown` / `locator_missing` | 页面或控件引用无效 | 用本次 Scout 观察补齐页面，不编造 locator |
 | `check_empty` / `check_no_assertion` | check 只有标题或观察，没有有效断言 | 使用注册断言验证原文预期 |
 | `check_assertion_unresolved` | helper 是否断言不能静态确认 | 运行后确认对应 check 有 assertion/result |
-| `source_*` / `expectations_missing` | 同名原文快照或 source_ref 映射有缺口 | 核对原文版本、条目 ID、类型与覆盖，不删预期凑通过 |
+| `source_*` / `expectations_missing` | CASE_SOURCE 配置或 source_ref 映射有缺口 | 核对原文版本、条目 ID、类型与覆盖，不删预期凑通过 |
 | `cases_missing` | 交付检查没有用例脚本 | 配置就绪不等于用例完成，继续实现 |
 
 注意：
 
 - 只读解析源码，不导入或执行用户仓库。已识别的 app 绑定可检查字面量页面引用，但不能静态证明任意 Python 的全部路径和动态 helper；
 - 静态映射、路径执行、业务预期验证是三件事。运行时仍独立拒绝空 check、零断言和未覆盖的原文；
-- 新转换用例必须按 `analyze-test-case` 保存同名原文 sidecar；旧无 sidecar 用例的兼容校验通过，不代表原文覆盖已证明；
+- 新转换用例必须按 `analyze-test-case` 设置 `CASE_SOURCE`；静态检查不访问飞书，source_remote 提示须用执行记录核验；旧 YAML 用例保留兼容；
 - 自检不核对 `locator_spec` 是否来自真机。格式能解析不代表能点中。`locator_spec` 只从 `case_run` 之后 `capability_id=hierarchy` 的 `nodes` 或 `hierarchy_text` 里抄；没有这次运行的界面结构就不要写。
 - 命令不存在说明本机没装 Scout：按 `onboarding` 门禁 3 协助安装，不要只丢文档链接。

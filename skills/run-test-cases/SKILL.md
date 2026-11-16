@@ -72,7 +72,7 @@ description: 通过 Nexus 运行已写好的用例，读取执行 Scout 的记�
 
 - `task_get`：`status`、`cases[]`、`pass_rate`、`resource_isolated`；
 - `session_events`：新记录返回 items（seq/ts/type/payload）、next_seq、high_watermark、has_more、sealed。`node/enter` / `node/leave` 对应作用域；动作有 `tool/call` / `tool/result`；有效断言是 `assertion/result`。按 source_ref/source_hash/step_id/observation_id 关联原文和证据，截图用 artifact_id。字段以实际返回为准，保留旧会话兼容。
-- `run/snapshot` 保存本次原文 sidecar、配置的脱敏快照与文件哈希。归因使用本次 snapshot，不拿后来修改的仓库内容替代历史原文。
+- `run/snapshot` 保存本次从 `CASE_SOURCE` 指定位置读取的原文快照（兼容旧 YAML）、配置的脱敏快照与文件哈希。归因使用本次 snapshot，不拿后来修改的仓库内容替代历史原文。
 - 执行 Scout 离线时，Nexus 可能仍显示最后同步结论；详情返回暂不可用。明确说明原节点和最后同步时间，不把空响应当作“没有错误”，不把离线当作测试失败，也不改用另一节点的记录。
 
 需要特别处理的 `reason_code`：
@@ -89,6 +89,7 @@ description: 通过 Nexus 运行已写好的用例，读取执行 Scout 的记�
 | `repo_unavailable` | 设备所在电脑拉不到仓库：本机没有 git，或没有该仓库的 git 凭据；让用户处理那台电脑 |
 | `script_missing` / `script_ambiguous` | 仓库里找不到或有多份 `tests/**/<case_id>.py` |
 | `assertion_missing` / `check_empty` | 记录存在，但没有完成有效预期验证；补注册断言，探路采集不得计入通过 |
+| `source_read_failed` | 核对 CASE_SOURCE 的飞书链接、工作表、范围、稳定用例 ID、列位置及原执行 Scout 的飞书授权；不得退回历史原文冒充本次读取成功 |
 | `source_coverage_missing` | 对照 snapshot.source_ref 补缺失实现；不删除原文预期消除错误 |
 | `node_disconnected` / `scout_restarted` / `worker_interrupted` | 读取最后持久记录，确认执行边界；不自动重放 |
 | `record_not_found` / `evidence_temporarily_unavailable` | 区分记录不存在与原 Scout 离线；不输出通过结论 |

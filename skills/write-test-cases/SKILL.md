@@ -5,7 +5,7 @@ description: 将已有人工用例实现为可复用的 MinoScout Python 脚本�
 
 # 编写用例脚本（Scout）
 
-脚本是 Python，一条用例一个文件，在所选设备所属 Scout 的独立进程执行。先按 [analyze-test-case](../analyze-test-case/SKILL.md) 固定同名 `.yaml` 原文快照；仓库与页面配置见 `repo-config`。完整记录保存在执行 Scout，以 Nexus task_id 归档；Nexus 保存任务索引，Workbench 经 Nexus 读取 Scout 详情。
+脚本是 Python，一条用例一个文件，在所选设备所属 Scout 的独立进程执行。先按 [analyze-test-case](../analyze-test-case/SKILL.md) 确定原文位置并在 Python 声明 `CASE_SOURCE` 来源变量；仓库与页面配置见 `repo-config`。完整记录保存在执行 Scout，以 Nexus task_id 归档；Nexus 保存任务索引，Workbench 经 Nexus 读取 Scout 详情。
 
 方法签名以本机安装的运行时为准，不确定时读源码，不要凭记忆：
 
@@ -52,10 +52,10 @@ def run(case):
 - 前置写在同文件的 `run`（或同文件的 `pretest`）里，放在所有 `do` 之前。`precondition` 为空、并且确实不用清缓存、登录、安装或授权时，仍然写一条 `prep`，块里可以没有动作，标题写清为什么不做，例如 `prep("不依赖缓存或登录态，安装后直接开始")`。这条标题会写入 Nexus。不要写 `prep("无")`；
 - 前置里的「清理缓存 / 清除缓存 / 清除应用数据」，Android 用 `app.clear_cache()`。iOS 上这个方法会 `declined`，不要换别的命令绕过去，做不到就停下问；
 - 一个 `with` 块里只放这一步的动作；失败时 Workbench 定位到这个 title；
-- 新转换用例的每个原文条目用 `source_ref` 关联同名 `.yaml`，helper 内动作继承当前作用域的 source_ref。静态映射不证明运行覆盖，运行覆盖也不等于业务断言通过；
+- 新转换用例的每个原文条目用 `source_ref` 关联执行前从 `CASE_SOURCE` 读取的原文快照，helper 内动作继承当前作用域的 source_ref。静态映射不证明运行覆盖，运行覆盖也不等于业务断言通过；
 - 设备动作失败默认中止，保留实际 status/reason_code，不捕获失败后继续冒充成功。`check` 中必须实际执行 `on_page`、`expect`、`vlm(verdict="pass")` 或 `case.nexus.assert_equal(...)` 等注册断言。空 check、仅 screenshot/note 或成功的原生 Python `assert` 都不构成有效断言证据；
 - 补充证据用 `case.nexus.note("文字", 键=值)`，不要 `print`；
-- 账号用 `case.nexus.account()` 租用，默认使用原文 sidecar 的 `account_requirements`（没有则使用服务端约束）；需要时显式传 `requirements={"all": [...], "prefer": [...]}` 或 `prefer=[...]`。只能使用项目已维护的事实，选到账号后仍验证实际前置。仓库不写账号密码、登录方式或验证码策略。验证码用 `case.scout.otp(account)`：账号自带码 → Nexus 项目环境配置的 fixed/Gmail/hitl 策略 → 旧仓库兼容码 → 否则 `otp_requires_human`，不猜码。号池为空或没有匹配账号时由 Nexus 按项目环境配置自动补号。
+- 账号用 `case.nexus.account()` 租用，默认使用服务端项目账号约束（旧 YAML 的 `account_requirements` 保留兼容）；需要时显式传 `requirements={"all": [...], "prefer": [...]}` 或 `prefer=[...]`。只能使用项目已维护的事实，选到账号后仍验证实际前置。仓库不写账号密码、登录方式或验证码策略。验证码用 `case.scout.otp(account)`：账号自带码 → Nexus 项目环境配置的 fixed/Gmail/hitl 策略 → 旧仓库兼容码 → 否则 `otp_requires_human`，不猜码。号池为空或没有匹配账号时由 Nexus 按项目环境配置自动补号。
 
 ## 3. `app` 的方法与渠道支持
 
@@ -125,7 +125,7 @@ def run(case):
 
 页面参数、点击、截图、界面结构都只来自 Scout 执行这条用例脚本。`app.hierarchy()`、`app.screenshot()`、`app.tap()`、`app.input()` 就是 Scout 的能力。写的时候调用 `case_run`，由 Scout 跑 `script.run`。不要用浏览器、adb、Playwright 或其他工具去看界面、点控件、抄 DOM。
 
-1. 取**需求**：`case_list` / `requirement_list(project_id)` 给需求索引，不是用例正文。按 `analyze-test-case` 读取原文、固定同名 sidecar、核对前置与可判定预期；已在当前任务完成这步就复用。
+1. 取**需求**：`case_list` / `requirement_list(project_id)` 给需求索引，不是用例正文。按 `analyze-test-case` 读取原文、确定 `CASE_SOURCE` 来源变量、核对前置与可判定预期；已在当前任务完成这步就复用。
 2. 取仓库：`project_list` 拿 `repo_url`、`repo_branch`。
    - 本机路径约定 `~/.mino/workspaces/<project_id>`；
    - 不存在：`git clone --branch <repo_branch> <repo_url>`；

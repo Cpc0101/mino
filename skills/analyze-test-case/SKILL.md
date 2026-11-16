@@ -20,37 +20,28 @@ description: 把已有人工用例整理为可自动化的前置、操作、预�
 
 选择文本/节点、数据比较或视觉证据来验证每一条预期。存在多个合理含义且会改变结论时，把具体缺口交给用户；先继续不依赖该答案的分析和采集。原文缺失与产品不符合原文分别记录，不把它们都归为脚本失败。
 
-## 同名原文快照
+## 用例来源变量与执行快照
 
-新转换的用例同时创建 `tests/<requirement_id>/<case_id>.yaml` 和 `.py`。例：
+飞书表格是用例正文的唯一维护入口。新用例不创建同名 YAML，在 Python 顶层声明字面量 `CASE_SOURCE`：
 
-```yaml
-case_id: order_total
-source:
-  url: https://example.test/requirements/orders
-  revision: document-revision-12
-preconditions:
-  - id: P1
-    text: 已登录有购物车商品的测试账号
-steps:
-  - id: S1
-    text: 打开购物车并进入结算页
-expectations:
-  - id: E1
-    text: 结算页商品总额与购物车中商品金额合计一致
-account_requirements:
-  all:
-    - facet: has_cart_items
-      op: eq
-      value: true
-  prefer: []
+```python
+CASE_SOURCE = {
+    "kind": "feishu_sheet",
+    "url": "https://example.feishu.cn/wiki/TOKEN?sheet=SHEET_ID",
+    "sheet_id": "SHEET_ID",
+    "range": "A2:H1000",
+    "case_id": "order_total",
+    "columns": {"case_id": "A", "preconditions": "D", "steps": "E", "expectations": "F"},
+}
 ```
 
-示例地址、版本、业务标签只是格式示例，实际内容来自本次原文与现有账号字段。`source.revision` 固定文档版本或原文内容哈希；无 URL 的用户原文也要固定内容版本。条目 ID 在同一用例内唯一。
+链接、工作表、范围、稳定用例 ID 和列位置来自实际读取结果，不猜位置。`case_id` 按单元格值唯一匹配，不绑定易移动的行号。每个前置、操作、预期单元格内一条原文占一行；可在飞书中使用 `P1:` / `S1:` / `E1:` 等稳定编号。未显式编号时按非空行顺序生成对应编号。
 
-`account_requirements` 可省略。约束只使用该项目实际维护、支持查询的 facet/operator；不虚构账号业务状态。必需条件放 `all`，可选偏好放 `prefer`。账号标签用于选候选账号，真实前置仍需脚本验证；未知状态保持未知，不从一个 prep 标题推断账号已达到该状态。密码、验证码不写入原文快照。
+Scout 在每次执行前通过本机已授权的飞书插件读取当前原文，固定内容哈希、来源位置和读取时间，归档到该次执行记录。用户只维护飞书和 Python，不手动维护快照文件。原文读取失败、内容不完整、用例 ID 不唯一、预期缺失或引用不匹配时必须阻塞，不能回退到旧快照继续运行。
 
-实现时用 `prep/do/check(title, source_ref="P1/S1/E1")` 关联原文。可以将一个原文条目拆成多个作用域或 helper；同一条的多个实现保留相同 source_ref。Scout 执行时保存快照、哈希与实际事件。
+用 `prep/do/check(title, source_ref="P1/S1/E1")` 关联原文。多块实现可以引用同一条原文；修改飞书的步骤结构后仍需核对 Python 的映射和业务断言。静态检查只验证来源变量配置，运行记录才证明原文覆盖和断言通过。
+
+已有同名 YAML 保留兼容；迁移到 `CASE_SOURCE` 时删除同名 YAML，禁止两个来源并存。账号密码和验证码只从项目账号资源取得，不放入来源变量或飞书用例。
 
 ## 转入编写
 
