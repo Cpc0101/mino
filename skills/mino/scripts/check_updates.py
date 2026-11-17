@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import argparse
+import base64
+import hashlib
 import json
 import os
 import platform
@@ -16,10 +18,9 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
+SKILL_VERSION_API_URL = "https://api.github.com/repos/Cpc0101/mino/contents/VERSION?ref=main"
 SKILL_VERSION_URL = "https://raw.githubusercontent.com/Cpc0101/mino/main/VERSION"
 SCOUT_MANIFEST_URL = "https://github.com/Cpc0101/MinoScout/releases/latest/download/manifest.json"
-DEFAULT_SKILL_ROOTS = ("~/.codex/skills", "~/.cursor/skills", "~/.claude/skills")
-DEFAULT_ROUTING_POLICY = "~/.codex/AGENTS.md"
 SEMVER = re.compile(r"^[vV]?(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$")
 
 
@@ -87,11 +88,59 @@ def _fetch_json(url: str, timeout: float) -> dict[str, Any]:
     return data
 
 
+def _github_content_version(payload: dict[str, Any]) -> str:
+    """从 GitHub Contents API 的 base64 响应中读取 VERSION。"""
+    if str(payload.get("encoding") or "").lower() != "base64":
+        raise ValueError("GitHub Contents API 未返回 base64 内容")
+    content = str(payload.get("content") or "").replace("\n", "").replace("\r", "").strip()
+    if not content:
+        raise ValueError("GitHub Contents API 未返回 VERSION 内容")
+    try:
+        text = base64.b64decode(content, validate=True).decode("utf-8").strip()
+    except (ValueError, UnicodeDecodeError) as exc:
+        raise ValueError("GitHub Contents API 返回的 VERSION 无法解码") from exc
+    version = text.lstrip("vV")
+    if not _semver(version):
+        raise ValueError(f"GitHub Contents API 返回了无效版本: {text!r}")
+    return version
+
+
+def _fetch_latest_skill_version(timeout: float) -> tuple[str, str]:
+    """优先用 GitHub API 避开 raw CDN 缓存，失败后再回退 raw。"""
+    override = os.environ.get("MINO_SKILL_VERSION_URL", "").strip()
+    if override:
+        version = _fetch_text(override, timeout).lstrip("vV")
+        if not _semver(version):
+            raise ValueError(f"自定义版本地址返回了无效版本: {version!r}")
+        return version, "override"
+
+    errors: list[str] = []
+    try:
+        version = _github_content_version(_fetch_json(SKILL_VERSION_API_URL, timeout))
+        return version, "github-api"
+    except Exception as exc:
+        errors.append(f"GitHub API: {exc}")
+
+    try:
+        version = _fetch_text(SKILL_VERSION_URL, timeout).lstrip("vV")
+        if not _semver(version):
+            raise ValueError(f"VERSION 内容无效: {version!r}")
+        return version, "raw"
+    except Exception as exc:
+        errors.append(f"raw: {exc}")
+
+    raise RuntimeError("; ".join(errors))
+
+
 def _skill_roots() -> list[Path]:
     configured = os.environ.get("MINO_SKILL_ROOTS", "").strip()
     if configured:
         return [Path(item).expanduser() for item in configured.split(os.pathsep) if item.strip()]
-    return [Path(item).expanduser() for item in DEFAULT_SKILL_ROOTS if Path(item).expanduser().exists()]
+    codex_home = os.environ.get("CODEX_HOME", "").strip() or "~/.codex"
+    defaults = ("cursor", "claude")
+    candidates = [Path(codex_home).expanduser() / "skills"]
+    candidates.extend(Path(f"~/.{name}/skills").expanduser() for name in defaults)
+    return [path for path in candidates if path.exists()]
 
 
 def _compare_state(current: str, latest: str) -> str:
@@ -216,17 +265,176 @@ def _check_scout(timeout: float) -> tuple[dict[str, Any], list[str]]:
 
 
 def _check_routing_policy() -> dict[str, Any]:
-    target = os.environ.get("MINO_ROUTING_POLICY_PATH", "").strip() or DEFAULT_ROUTING_POLICY
+    target = os.environ.get("MINO_ROUTING_POLICY_PATH", "").strip()
+    policy_path = Path(target).expanduser() if target else (
+        Path(os.environ.get("CODEX_HOME", "").strip() or "~/.codex").expanduser() / "AGENTS.md"
+    )
     try:
         from install_routing_policy import PolicyConflict, inspect_policy
-
-        result = inspect_policy(target)
-    except PolicyConflict as exc:
-        return {"path": target, "state": "conflict", "reason": str(exc)}
     except Exception as exc:
-        return {"path": target, "state": "error", "reason": str(exc)}
+        return {"path": str(policy_path), "state": "error", "reason": str(exc)}
+    try:
+        result = inspect_policy(policy_path)
+    except PolicyConflict as exc:
+        return {"path": str(policy_path), "state": "conflict", "reason": str(exc)}
+    except Exception as exc:
+        return {"path": str(policy_path), "state": "error", "reason": str(exc)}
     result["requires_action"] = result.get("state") != "current"
     return result
+
+
+def _routing_action(policy: dict[str, Any]) -> dict[str, Any] | None:
+    state = str(policy.get("state") or "")
+    if state == "current":
+        return None
+    path = str(policy.get("path") or "")
+    if state == "conflict":
+        return {
+            "id": "routing_policy",
+            "kind": "resolve_conflict",
+            "requires_user_confirmation": True,
+            "path": path,
+            "question": (
+                f"Mino 持久路由文件 {path} 的托管标记存在冲突。是否允许我协助你检查并修复？"
+                "修复前不会覆盖现有文件。"
+            ),
+            "impact": "不修复时，后续会话可能继续优先使用平台 Computer Use。",
+            "command": None,
+        }
+    if state == "error":
+        return {
+            "id": "routing_policy",
+            "kind": "repair_error",
+            "requires_user_confirmation": True,
+            "path": path,
+            "question": f"Mino 无法确认持久路由文件 {path} 的状态。是否允许我检查并修复？",
+            "impact": "不修复时，后续会话可能继续优先使用平台 Computer Use。",
+            "command": None,
+        }
+    installer = Path(__file__).resolve().with_name("install_routing_policy.py")
+    return {
+        "id": "routing_policy",
+        "kind": "install_routing_policy",
+        "requires_user_confirmation": True,
+        "path": path,
+        "question": (
+            f"Mino 检测到跨会话路由尚未安装或需要刷新（{state}）。"
+            f"是否允许我写入托管路由块到 {path}？"
+        ),
+        "impact": (
+            "它会让后续 Codex 会话优先使用 Mino MCP/Scout，而不是平台 Computer Use；"
+            "只修改 mino-routing 标记之间的内容，变更后建议新开会话。"
+        ),
+        "requires_new_session": True,
+        "command": [sys.executable, str(installer), "--apply", "--path", path],
+    }
+
+
+def _build_consent_actions(
+    skills: list[dict[str, Any]],
+    scout: dict[str, Any],
+    routing_policy: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """生成需要用户逐项确认的安装/更新动作，不在检查阶段执行任何写入。"""
+    actions: list[dict[str, Any]] = []
+    for row in skills:
+        if row.get("state") != "update_available":
+            continue
+        current = str(row.get("current") or "unknown")
+        latest = str(row.get("latest") or "unknown")
+        root = str(row.get("root") or "")
+        installer = Path(__file__).resolve().with_name("install_skills.py")
+        actions.append(
+            {
+                "id": f"skill:{root}",
+                "kind": "update_skill",
+                "requires_user_confirmation": True,
+                "root": root,
+                "current": current,
+                "latest": latest,
+                "question": (
+                    f"检测到 Mino Skill 可从 {current} 更新到 {latest}，安装位置为 {root}。"
+                    "是否允许我现在更新？更新后通常需要新开会话才能加载。"
+                ),
+                "impact": "未确认前不修改已安装 Skill；当前会话继续时仍按现有 Skill 约束执行。",
+                "requires_new_session": True,
+                "command": [
+                    sys.executable,
+                    str(installer),
+                    "--root",
+                    root,
+                    "--ref",
+                    "main",
+                    "--expected-version",
+                    latest,
+                ],
+            }
+        )
+
+    if scout.get("state") == "not_installed":
+        actions.append(
+            {
+                "id": "scout",
+                "kind": "install_scout",
+                "requires_user_confirmation": True,
+                "question": (
+                    "本机尚未安装 Mino Scout。是否允许我通过 Mino MCP 申请一次性安装凭证，"
+                    "并在这台电脑安装 Scout？"
+                ),
+                "impact": (
+                    "安装会注册本机 Scout 服务并连接当前 Mino 账号；一次性安装凭证不会出现在对话中。"
+                    "未确认前不会申请凭证或执行安装。"
+                ),
+                "requires_new_session": False,
+                "next_step": "调用 agent_guide，再调用 MCP scout_install_token 获取本机安装请求。",
+                "command": None,
+            }
+        )
+    elif scout.get("state") == "update_available":
+        current = str(scout.get("current") or "unknown")
+        latest = str(scout.get("latest") or "unknown")
+        build_id = str(scout.get("build_id") or "")
+        release_tag = str(scout.get("release_tag") or "")
+        digest = hashlib.sha256("|".join((current, latest, build_id, release_tag)).encode()).hexdigest()[:16]
+        operation_id = f"mino-scout-{digest}"
+        scout_exe = shutil.which("mino-scout")
+        command: list[str] | None = None
+        if scout_exe and scout.get("method") == "mino-scout update-check":
+            command = [
+                scout_exe,
+                "update",
+                "--release-tag",
+                release_tag,
+                "--build-id",
+                build_id,
+                "--operation-id",
+                operation_id,
+            ]
+        actions.append(
+            {
+                "id": "scout",
+                "kind": "update_scout",
+                "requires_user_confirmation": True,
+                "current": current,
+                "latest": latest,
+                "build_id": build_id,
+                "release_tag": release_tag,
+                "operation_id": operation_id,
+                "question": (
+                    f"检测到本机 MinoScout 可从 {current} 更新到 {latest}。"
+                    "更新会停止或替换 Scout，可能中断正在执行的任务。是否允许我现在更新？"
+                ),
+                "impact": "必须使用预检返回的固定 build_id/release_tag；不要重放结果未知的写操作。",
+                "requires_new_session": False,
+                "service_interruption": True,
+                "command": command,
+            }
+        )
+
+    routing = _routing_action(routing_policy)
+    if routing:
+        actions.append(routing)
+    return actions
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -237,17 +445,18 @@ def main(argv: list[str] | None = None) -> int:
     timeout = max(1.0, min(args.timeout, 30.0))
 
     latest = os.environ.get("MINO_SKILL_LATEST_VERSION", "").strip().lstrip("vV")
+    latest_source = "override" if latest else ""
     latest_error = ""
     if not latest:
-        url = os.environ.get("MINO_SKILL_VERSION_URL", "").strip() or SKILL_VERSION_URL
         try:
-            latest = _fetch_text(url, timeout).lstrip("vV")
+            latest, latest_source = _fetch_latest_skill_version(timeout)
         except Exception as exc:
             latest_error = f"无法读取最新技能版本: {exc}"
 
     skills, needs_update = _check_skills(latest, latest_error)
     scout, scout_needs_update = _check_scout(timeout)
     routing_policy = _check_routing_policy()
+    actions = _build_consent_actions(skills, scout, routing_policy)
     needs_update.extend(scout_needs_update)
     unknown_checks = [f"skill:{row.get('root')}" for row in skills if row.get("state") == "unknown"]
     if scout.get("state") == "unknown":
@@ -264,25 +473,29 @@ def main(argv: list[str] | None = None) -> int:
         overall_state = "unknown"
     elif not installed_skill_states or scout.get("state") == "not_installed":
         overall_state = "not_installed"
+    elif actions:
+        overall_state = "action_required"
     else:
         overall_state = "current"
     out = {
-        "schema": 2,
+        "schema": 3,
         "checked_at": int(time.time()),
         "overall_state": overall_state,
         "check_complete": not unknown_checks,
+        "skill_latest_source": latest_source,
         "skills": skills,
         "scout": scout,
         "routing_policy": routing_policy,
         "update_available": bool(needs_update),
         "needs_update": needs_update,
+        "consent_required": bool(actions),
+        "consent_actions": actions,
         "unknown_checks": unknown_checks,
         "not_installed_checks": not_installed_checks,
         "startup_policy": (
-            "有更新时先读 update-skills 更新技能；技能需新会话生效。"
-            "Scout 用固定 build_id/release_tag 更新，执行前必须向用户说明影响并取得确认。"
-            "routing_policy 不是 current 时，经用户确认后用 install_routing_policy.py --apply 安装；"
-            "AGENTS.md 变更通常需要新会话生效。"
+            "consent_actions 非空时，Agent 必须先向用户说明影响并取得明确同意，不得静默安装或更新。"
+            "Skill 更新需新开会话生效；Scout 必须使用固定 build_id/release_tag；"
+            "routing_policy 不是 current 时询问用户后再用 install_routing_policy.py --apply。"
         ),
     }
     print(json.dumps(out, ensure_ascii=False, indent=2))

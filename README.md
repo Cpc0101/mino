@@ -24,23 +24,23 @@ Nexus 保存任务索引和设备/账号租约，Scout 独立执行并按 task_i
 
 ## 安装给 Codex / Cursor
 
-从 GitHub **复制**到 `~/.codex/skills/` 或 `~/.cursor/skills/`（真实目录，不要软链到本机开发仓）。步骤见技能 `update-skills`。
+从 GitHub 的 `skills/` 安装为 `$CODEX_HOME/skills/`（默认 `~/.codex/skills/`）或 `~/.cursor/skills/` 下的真实目录，不要软链到本机开发仓。`install_skills.py` 会校验版本、只替换 Mino 技能、保留同目录第三方技能，并在失败时回滚。
 
-Codex 首次配置还要检查 `~/.codex/AGENTS.md` 是否含 Mino 托管路由块。安装器在用户确认后才写入，只替换自己的标记区间，不覆盖其他规则；写入后新开会话生效。没有这层持久规则时，Skill 和 MCP instructions 仍可能输给平台内置 Computer Use。
+Codex 首次配置还要检查 `$CODEX_HOME/AGENTS.md`（默认 `~/.codex/AGENTS.md`）是否含 Mino 托管路由块。安装器在用户确认后才写入，只替换自己的标记区间，不覆盖其他规则；写入后新开会话生效。没有这层持久规则时，Skill 和 MCP instructions 仍可能输给平台内置 Computer Use。
 
 也可对 agent 说：
 
-> 帮我从 https://github.com/Cpc0101/mino.git 安装 Mino Skill 到 ~/.codex/skills（复制，不要软链）。装好后按 onboarding 带我上手。
+> 帮我从 https://github.com/Cpc0101/mino.git 安装 Mino Skill 到 Codex（复制，不要软链）。缺什么先问我一次，确认后你直接安装。装好后按 onboarding 带我上手。
 
 装完后**新开一个会话**。版本见已装目录里的 `VERSION`、`CHANGELOG.md`。
 
-从 `0.1.15` 或更早版本首次升级时，旧安装还没有 `mino` 统一入口，需手动执行一次上面的更新流程；从 `0.1.16` 起，新会话可按 `mino` 技能的启动门禁检查 Skill、Scout 与持久路由。
+从 `0.1.15` 或更早版本首次升级时，旧安装还没有统一入口，需要 Agent 完成一次引导安装；用户不需要自己复制命令。从 `0.1.16` 起，新会话可按 `mino` 技能的启动门禁检查 Skill、Scout 与持久路由。
 
 ## 更新
 
-再跑一遍 `update-skills` 里的安装命令（重新 clone + 覆盖复制）。开始 Mino 工作流时，`mino` 技能的 `scripts/check_updates.py` 会只读检查 Skill、本机 Scout 和持久路由状态；`overall_state=unknown` 表示检查未完成，不是已最新。技能更新后按提示刷新 `AGENTS.md` 托管块。不要 `ln -s` 到 `code/mino`。
+开始 Mino 工作流时，`mino` 技能的 `scripts/check_updates.py` 会只读检查 Skill、本机 Scout 和持久路由状态；`overall_state=unknown` 表示检查未完成，不是已最新。需要变更时输出 `consent_required=true` 和可执行的 `consent_actions`：Agent 先说明版本与影响并询问，用户明确同意后直接执行对应安装动作，不让用户手工复制命令或编辑文件。未安装 Scout 时会先询问；同意后再经 MCP `scout_install_token` 安装。
 
-如果客户端总是抢用 Computer Use，可让 agent 先执行 `skills/mino/scripts/install_routing_policy.py --check`，说明差异并征得同意后再 `--apply`。需要强制禁用其他工具时，还要在客户端或组织管理策略中关闭它们；“优先 Mino”的提示本身不能覆盖硬权限策略。
+如果客户端总是抢用 Computer Use，可让 Agent 先执行 `skills/mino/scripts/install_routing_policy.py --check`，说明差异并征得同意后再 `--apply`。需要强制禁用其他工具时，还要在客户端或组织管理策略中关闭它们；“优先 Mino”的提示本身不能覆盖硬权限策略。
 
 ## 前提
 

@@ -15,7 +15,12 @@ START_MARKER = "<!-- mino-routing:start -->"
 END_MARKER = "<!-- mino-routing:end -->"
 SKILL_DIR = Path(__file__).resolve().parent.parent
 TEMPLATE_PATH = SKILL_DIR / "assets" / "mino-routing.md"
-DEFAULT_TARGET = "~/.codex/AGENTS.md"
+
+
+def default_target() -> Path:
+    """优先遵循 CODEX_HOME，未设置时使用标准 Codex 目录。"""
+    codex_home = os.environ.get("CODEX_HOME", "").strip() or "~/.codex"
+    return Path(codex_home).expanduser() / "AGENTS.md"
 
 
 class PolicyConflict(RuntimeError):
@@ -96,9 +101,10 @@ def _status(path: Path) -> dict[str, Any]:
     return result
 
 
-def inspect_policy(path: str | Path = DEFAULT_TARGET) -> dict[str, Any]:
+def inspect_policy(path: str | Path | None = None) -> dict[str, Any]:
     """返回托管块状态，不创建或修改目标文件。"""
-    return _status(Path(path).expanduser())
+    target = default_target() if path is None else Path(path).expanduser()
+    return _status(target)
 
 
 def _atomic_write(path: Path, text: str) -> None:
@@ -185,9 +191,13 @@ def main(argv: list[str] | None = None) -> int:
     action.add_argument("--check", action="store_true", help="只读检查（默认）")
     action.add_argument("--apply", action="store_true", help="安装或刷新托管块")
     action.add_argument("--remove", action="store_true", help="只移除托管块")
-    parser.add_argument("--path", default=DEFAULT_TARGET, help=f"目标文件，默认 {DEFAULT_TARGET}")
+    parser.add_argument(
+        "--path",
+        default="",
+        help="目标文件，默认 $CODEX_HOME/AGENTS.md（未设置时为 ~/.codex/AGENTS.md）",
+    )
     args = parser.parse_args(argv)
-    path = Path(args.path).expanduser()
+    path = Path(args.path).expanduser() if args.path else default_target()
 
     try:
         if args.apply:

@@ -15,11 +15,19 @@ description: 从 GitHub 安装或更新 Mino 技能到 Codex、Cursor（可选 C
 python3 "<mino-skill-dir>/scripts/check_updates.py" --json
 ```
 
-输出分别给出每个技能根目录和本机 Scout 的 `current` / `latest` / `state`。以顶层 `overall_state` 判断：`current`、`update_available`、`unknown`、`not_installed`。`unknown` 时 `check_complete=false`，表示检查失败，不是已最新。Skill 有更新时，下面安装命令会处理；Scout 有更新时使用 `mino-scout update-check` 返回的固定值，执行前必须向用户说明并取得确认。
+输出分别给出每个技能根目录和本机 Scout 的 `current` / `latest` / `state`。以顶层 `overall_state` 判断：`current`、`update_available`、`action_required`、`unknown`、`not_installed`。`unknown` 时 `check_complete=false`，表示检查失败，不是已最新。
+
+`consent_required=true` 时，必须先读取 `consent_actions`，用其中的 `question` 和 `impact` 向用户询问。Skill、Scout、`AGENTS.md` 都属于本机持久状态，只有用户明确同意后才能更新；不要要求用户自己执行命令或编辑文件。用户同意后由 Agent 执行，客户端若弹出权限确认再由用户批准。
+
+每个动作都带有稳定的 `id`。用户可一次同意全部动作，也可逐项同意；未同意的动作保持现状。`command` 是同意后由 Agent 执行的结构化命令：
+
+- `update_skill` / `update_scout` / `install_routing_policy`：执行返回的 `command`；Scout 只认预检给出的固定版本。
+- `install_scout`：先询问用户；同意后转到 `onboarding`，通过 MCP `scout_install_token` 申请本机安装请求，不要在对话中展示一次性凭证。
+- `resolve_conflict` / `repair_error`：先只读诊断并解释，不要删除残缺标记、覆盖文件或伪造替代安装命令。
 
 ## 禁止软链
 
-**禁止**把技能目录做成指向本机业务仓（如 `code/mino`）的符号链接。安装与更新都必须：**从 GitHub clone 一次 → 复制成真实目录/文件**。
+**禁止**把技能目录做成指向本机业务仓（如 `code/mino`）的符号链接。安装与更新都必须：**从 GitHub clone 一次 → 复制成真实目录/文件**。`install_skills.py` 会拒绝源或技能根目录里的软链。
 
 ## Codex 与 Cursor
 
@@ -27,35 +35,26 @@ python3 "<mino-skill-dir>/scripts/check_updates.py" --json
 
 | 客户端 | 技能根目录 |
 |---|---|
-| Codex | `$HOME/.codex/skills` |
+| Codex | `$CODEX_HOME/skills`（默认 `$HOME/.codex/skills`） |
 | Cursor | `$HOME/.cursor/skills` |
 | Claude（仅在用户使用） | `$HOME/.claude/skills` |
 
-不要把同一份本机业务仓软链到任一目录。对实际使用的根目录执行：
+不要把同一份本机业务仓软链到任一目录。预检给出 Skill 更新动作时，用户确认后直接执行动作中的 `command`。该命令等价于：
 
 ```bash
-TMP=$(mktemp -d)
-git clone --depth 1 https://github.com/Cpc0101/mino.git "$TMP/mino"
-DEST="$HOME/.codex/skills"   # Cursor 改成 $HOME/.cursor/skills
-mkdir -p "$DEST"
-for d in "$TMP/mino/skills"/*/; do
-  [ -f "$d/SKILL.md" ] || continue
-  name=$(basename "$d")
-  rm -rf "$DEST/$name"
-  cp -R "$d" "$DEST/$name"
-done
-cp "$TMP/mino/VERSION" "$DEST/VERSION"
-cp "$TMP/mino/CHANGELOG.md" "$DEST/CHANGELOG.md"
-rm -rf "$TMP"
-find "$DEST" -type l
-cat "$DEST/VERSION"
+python3 "$HOME/.codex/skills/mino/scripts/install_skills.py" \
+  --root "$HOME/.codex/skills" \
+  --ref main \
+  --expected-version "<预检返回的 latest>"
 ```
 
-`rm -rf` 只针对从同一 clone 枚举出的 Mino 技能名；不要清理根目录里的其他第三方技能。更新完成后报告 `CHANGELOG.md` 本版变化，并说明**需要新开会话**才会加载新内容。
+安装器从正式仓 clone 临时副本，校验 `VERSION`，把 `skills/*/` 复制成真实目录，并保留技能根目录中的第三方技能。`--expected-version` 防止检查后远端又变化导致安装错版本。更新完成后报告 `CHANGELOG.md` 本版变化，并说明**需要新开会话**才会加载新内容。
+
+`0.1.18` 及更早的已安装目录没有这个安装器。首次引导时，Agent 可把正式仓 clone 到临时目录，并直接运行源仓里的 `skills/mino/scripts/install_skills.py --source-dir <clone> --root <目标技能根目录>`；必须先询问用户，仍然不要要求用户手工执行。完成一次升级后，后续直接使用预检动作即可。
 
 ## 持久路由策略（AGENTS.md）
 
-Skill 与 MCP `initialize.instructions` 不能保证压过平台内置 Computer Use/Browser。Codex 需要在 `$HOME/.codex/AGENTS.md` 写入 Mino 托管块；安装器只替换 `<!-- mino-routing:start -->` 和 `<!-- mino-routing:end -->` 之间内容，不覆盖文件其他部分。
+Skill 与 MCP `initialize.instructions` 不能保证压过平台内置 Computer Use/Browser。Codex 需要在 `$CODEX_HOME/AGENTS.md`（默认 `$HOME/.codex/AGENTS.md`）写入 Mino 托管块；安装器只替换 `<!-- mino-routing:start -->` 和 `<!-- mino-routing:end -->` 之间内容，不覆盖文件其他部分。
 
 Skill 更新后先只读检查：
 
@@ -64,10 +63,12 @@ python3 "$DEST/mino/scripts/install_routing_policy.py" --check
 ```
 
 - `current`：无需修改。
-- `missing` / `outdated`：向用户说明这是跨会话路由规则，**取得确认后**再执行 `--apply`。
+- `missing` / `outdated`：使用预检 `consent_actions` 中的问题询问用户；向用户说明这是跨会话路由规则，**取得确认后**再执行 `--apply`。
 - `conflict`：停止；不要删除残缺标记或覆盖原文件，先让用户检查。
 
 用户使用项目级规则或另一客户端时，可在确认后用 `--path <AGENTS.md>`。只有该客户端确实读取 `AGENTS.md` 时才安装；Cursor/Claude 的规则文件机制不同，不要伪造兼容。托管块变更后需要新开会话才生效；当前会话继续遵守 `mino` 技能，不因此改用其他 UI 工具。
+
+默认目标优先使用 `$CODEX_HOME/AGENTS.md`，未设置时为 `~/.codex/AGENTS.md`。用户确认后由 Agent 直接执行安装器，不要让用户手工复制路径或命令。
 
 ```bash
 python3 "$DEST/mino/scripts/install_routing_policy.py" --apply

@@ -49,11 +49,11 @@ description: 第一次让 Mino 能跑：安装持久路由、注册登录、OAut
 1. 运行已安装 `mino` 技能的只读检查：
 
 ```bash
-python3 "$HOME/.codex/skills/mino/scripts/install_routing_policy.py" --check
+python3 "${CODEX_HOME:-$HOME/.codex}/skills/mino/scripts/install_routing_policy.py" --check
 ```
 
-2. 状态不是 `current` 时，告诉用户：只有 Skill/MCP 时，平台仍可能优先用 Computer Use；写入 `$HOME/.codex/AGENTS.md` 的托管块能让后续会话稳定选择 Mino MCP/Scout。
-3. 用户确认后再运行 `--apply`。不得静默写入主目录；遇到 `conflict` 停止并解释，不覆盖现有文件。用户使用 Cursor 或其他客户端时，只在它确实读取 `AGENTS.md` 的情况下用 `--path` 指向对应文件。
+2. 状态不是 `current` 时，告诉用户：只有 Skill/MCP 时，平台仍可能优先用 Computer Use；写入 `$CODEX_HOME/AGENTS.md`（默认 `$HOME/.codex/AGENTS.md`）的托管块能让后续会话稳定选择 Mino MCP/Scout。
+3. 用户确认后再运行 `--apply`。Agent 应主动使用预检 `consent_actions[].question` 提问，并说明安装影响；不得静默写入主目录，也不要把“需要确认”等同于让用户手动执行命令。遇到 `conflict` 停止并解释，不覆盖现有文件。默认路径优先使用 `$CODEX_HOME/AGENTS.md`；用户使用 Cursor 或其他客户端时，只在它确实读取 `AGENTS.md` 的情况下用 `--path` 指向对应文件。
 4. 写入或更新后说明需要新开会话才加载；当前会话继续时仍按 `mino` 技能约束，不因为规则未热加载而改用其他 UI 工具。
 
 通过后告诉用户：「持久路由已就绪，下一步注册 / 登录。」
@@ -111,6 +111,8 @@ mino-scout probe
 
 已有且 `probe` 能看到目标平台设备 → 本节完成，跳到门禁 5。
 否则进入 3.2。
+
+缺少 `mino-scout` 时先把“将在本机安装 Scout、注册服务并连接当前账号”的影响告诉用户，并明确询问是否安装。用户拒绝就停止；不要自行申请安装 token，也不要改为让用户手工复制命令。
 
 ### 3.2 同机安装（MCP 申请命令 → 确认 → 执行）
 

@@ -2,6 +2,16 @@
 
 每个版本写清需要的 Scout / Nexus 版本。技能说的和实际对不上时，先核对这里。
 
+## 0.1.19
+
+- Mino 启动预检升级到 schema 3：需要本机变更时返回 `consent_required=true` 和逐项 `consent_actions`，包含稳定的 `id`、中文问题、影响、可执行命令、是否需新会话及服务中断标记；预检本身仍严格只读。
+- Skill 更新不再要求用户复制 clone / `rm` / `cp` 命令。用户确认后由 Agent 直接运行新增的 `install_skills.py`：校验 GitHub 源 `VERSION`、复制真实目录、拒绝软链、保留第三方技能，并在中途失败时整体回滚。
+- 本机缺少 Scout 时新增 `install_scout` 确认动作。用户同意后再进入 `onboarding`，通过 Mino MCP `scout_install_token` 获取一次性本机安装请求；不得提前申请 token 或在对话中暴露凭证。
+- Codex Skill 根目录和 `AGENTS.md` 路由目标都优先遵循 `$CODEX_HOME`，未设置时回退 `~/.codex`。路由仍只替换 Mino 托管标记区间，不覆盖用户其他规则。
+- 最新 Skill 版本优先读取 GitHub Contents API，失败时回退 raw，降低分支刚发布时 CDN 旧缓存造成的误判；Scout 更新仍只使用预检返回的固定 `build_id` / `release_tag`。
+
+需要 MinoScout `0.1.152`、MinoNexus `0.1.87`。本版仅更新 Skill 与其更新预检，不要求重新打包 Scout、Nexus 或 Workbench。
+
 ## 0.1.18
 
 - 将技能版本检查、安装文档与示例地址切换到迁移后的正式仓 `https://github.com/Cpc0101/mino.git`。旧仓库路径的 raw 内容仍有独立 CDN 缓存，会继续返回 `0.1.16`，正式地址已返回新版本；启动预检不再依赖旧路径。
