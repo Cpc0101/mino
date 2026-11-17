@@ -2,6 +2,11 @@
 
 每个版本写清需要的 Scout / Nexus 版本。技能说的和实际对不上时，先核对这里。
 
+## 0.1.17
+
+- 修复 `mino` 启动更新预检在部分 Python 环境中因系统根证书缺失导致的 `SSL: CERTIFICATE_VERIFY_FAILED`。检查器现在优先使用 `certifi` CA，无法通过 urllib 获取时再用系统 `curl` 兜底；联网成功时不再把 Skill 状态误报为 `unknown`。
+- 本版仅为 Skill 更新检查修复，继续要求 MinoScout `0.1.152`、MinoNexus `0.1.87`，不要求 MinoWorkbench 升级。
+
 ## 0.1.16
 
 - 新增 `mino` 统一入口技能：Nexus 控制面只走 Mino MCP，本机 Scout 只走 `mino-scout`，被测 Android / iOS / Web / 桌面软件和页面操作必须写成用例脚本并经 `case_run` 交给 Scout；不得因为平台提供 Computer Use 而静默换工具。

@@ -8,6 +8,7 @@ import os
 import platform
 import re
 import shutil
+import ssl
 import subprocess
 import sys
 import time
@@ -34,10 +35,49 @@ def _read_version(path: Path) -> str:
         return ""
 
 
+def _ssl_context() -> ssl.SSLContext:
+    """优先使用 certifi，兼容 macOS Python 未配置系统根证书的环境。"""
+    try:
+        import certifi
+
+        return ssl.create_default_context(cafile=certifi.where())
+    except (ImportError, OSError, ssl.SSLError):
+        return ssl.create_default_context()
+
+
 def _fetch_text(url: str, timeout: float) -> str:
     request = urllib.request.Request(url, headers={"User-Agent": "mino-skill-update-check/1"})
-    with urllib.request.urlopen(request, timeout=timeout) as response:
-        return response.read().decode("utf-8").strip()
+    context = _ssl_context()
+    try:
+        with urllib.request.urlopen(request, timeout=timeout, context=context) as response:
+            return response.read().decode("utf-8").strip()
+    except (OSError, ValueError) as urllib_error:
+        # 部分 Python 发行版没有可用根证书；curl 会使用系统证书链。
+        curl = shutil.which("curl")
+        if not curl:
+            raise
+        result = subprocess.run(
+            [
+                curl,
+                "--fail",
+                "--silent",
+                "--show-error",
+                "--location",
+                "--max-time",
+                f"{timeout:.3f}",
+                "--user-agent",
+                "mino-skill-update-check/1",
+                url,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=timeout + 2,
+            check=False,
+        )
+        if result.returncode != 0:
+            detail = (result.stderr or "").strip()
+            raise RuntimeError(f"{urllib_error}; curl 兜底失败: {detail}") from urllib_error
+        return result.stdout.strip()
 
 
 def _fetch_json(url: str, timeout: float) -> dict[str, Any]:
