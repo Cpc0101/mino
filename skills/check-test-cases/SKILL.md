@@ -15,7 +15,9 @@ description: 用 mino-scout check 检查用例的单文件业务归属、Scout A
 mino-scout check --require-cases .
 ```
 
-输出里只要还有一条需要解决的问题，就禁止 commit/push。先修复并重新运行；动态原文映射、页面定位、断言或业务覆盖需要真实运行时，先完成对应 `case_run`/证据核验再重跑。不得把 error、未核验 warning 或“待运行验证”的缺口留在已 push 的脚本里。
+输出中的 `error` 和 `warning` 是待解决问题，必须修复并重新运行后才能 commit/push；命令会以非零退出码阻断。`info` 只描述静态检查边界，不要求消除。特别是每条 `CASE_SOURCE` 都会固定产生一条 `source_remote/info`；不要为了去掉它而删除 `CASE_SOURCE`、改回 YAML 或反复执行用例。
+
+静态门禁不替代运行验证：动态原文映射、页面定位、断言和设备行为仍须用目标 Scout 节点完成对应 `case_run`/证据核验。静态检查通过只表示没有 error 和可操作 warning，不表示用例已真实执行通过。
 
 每次修改用例、`CASE_SOURCE`、`config.yaml`、`pages/`、`flows/` 或 `scripts/` 后，在脚本仓根执行：
 
@@ -29,14 +31,15 @@ mino-scout check .
 mino-scout check --require-cases .
 ```
 
-需要本机已安装 MinoScout `0.1.149` 或更高版本。该命令不是可移植的裸 Python 检查器；它读取 Scout 仓库源码，但不导入、不执行用户仓库，也不访问设备。输出统一为英文，格式为：
+需要本机已安装 MinoScout `0.1.150` 或更高版本。该命令不是可移植的裸 Python 检查器；它读取 Scout 仓库源码，但不导入、不执行用户仓库，也不访问设备。输出统一为英文，格式为：
 
 ```text
 <path>:<line>: [<finding>] <message>
 <path>:<line>: [<finding>/warning] <message>
+<path>:<line>: [<finding>/info] <message>
 ```
 
-有 error 时退出码为 1；只有 warning 时静态命令可以通过，但 warning 指向的动态映射、定位或断言仍是待解决问题，必须由运行记录核验并消除后才能 push。
+有 `error` 或 `warning` 时退出码为 1；只有 `info` 时退出码为 0。warning 指向动态映射、定位或断言缺口，必须修复或运行核验；info 不计入待解决问题，余下运行边界按交付要求单独核验。
 
 ## 检查类型
 
@@ -56,6 +59,8 @@ mino-scout check --require-cases .
 | `page_missing` / `control_unknown` / `locator_missing` | 页面或控件引用无效 | 用本次从 Scout 取得并核对过的界面结构补页面，不编造定位 |
 | `check_empty` / `check_no_assertion` | `check` 只有标题或观察，没有有效断言 | 使用注册断言验证原文预期 |
 | `check_assertion_unresolved` | helper 是否真正产生断言不能静态确认 | 运行后确认对应 check 有 assertion/result |
+| `source_remote/info` | 静态检查不读取 Feishu 原文；该提示对每条 `CASE_SOURCE` 固定出现 | 不是缺陷，保留 `CASE_SOURCE`，在 `case_run` 证据中核验原文映射与覆盖 |
+| `source_dynamic/warning` / `source_unmapped/warning` | 动态引用或覆盖无法静态确认 | 用执行记录确认覆盖；不能把未知当成已通过 |
 | `source_*` / `expectations_missing` | `CASE_SOURCE` 配置或 `source_ref` 映射有缺口 | 核对原文版本、条目 ID、类型与覆盖，不删预期凑通过 |
 | `cases_missing` | 交付检查没有发现用例脚本 | 配置就绪不等于用例完成，继续实现 |
 
@@ -82,7 +87,7 @@ mino-scout check --require-cases .
 ## 边界
 
 - 新用例只使用 Python + `CASE_SOURCE`，不再创建同名原文 YAML。旧 YAML 仅为已有仓库运行时兼容，不进入新脚本流程。
-- 静态检查通过只证明结构、引用和明显契约没有错误；真实定位、账号、验证码、断言和设备行为仍需 `case_run` 执行验证。
+- 静态检查通过只证明结构、引用和明显契约没有错误；真实定位、账号、验证码、断言和设备行为仍需 `case_run` 执行验证。`source_remote/info` 会持续存在，这是能力边界，不表示还有未解决问题。
 - 动态 helper 或动态 `source_ref` 不能因为静态不确定就强行改成另一套固定动作语言；必须用执行记录确认实际覆盖。
 - `locator_spec` 是否可用不能靠静态格式判断。定位只从本次 `case_run` 后 Scout 返回的 `nodes` 或 `hierarchy_text` 中取得；没有该次界面证据就不要写。
 - 命令不存在说明本机没装 Scout：按 `onboarding` 门禁 3 协助安装，不要只丢文档链接。

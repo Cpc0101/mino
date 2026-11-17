@@ -8,9 +8,9 @@
 - `case_isolation` 现在是 `mino-scout check` 的 finding 类型，并与语法、导入、config、pages、原文映射和断言检查使用同一套英文输出、warning 语义和退出码；不再安装或调用独立的 `check_case_isolation.py`。
 - `check-test-cases` 与 `write-test-cases` 都只要求运行 `mino-scout check --require-cases .`，不再描述“两层检查”或“任意 Python 环境检查器”。该命令需要已安装的 MinoScout CLI，不能脱离 Scout 运行时单独执行用例。
 - 新用例不再创建同名原文 YAML；`CASE_SOURCE` 是唯一的新脚本原文来源。旧 YAML 仅为已有仓库运行时兼容。
-- 增加脚本仓 push 强制门禁：`mino-scout check --require-cases .` 输出中只要还有任何待解决问题，必须先修复并完成所需运行验证，重新检查通过后才能 push。
+- 增加脚本仓 push 强制门禁：`mino-scout check --require-cases .` 的 `error` 和可操作 `warning` 会以非零退出码阻止 push；`source_remote/info` 是每条 `CASE_SOURCE` 固定的静态边界提示，不再是待解决问题，也不会因运行成功而消失。真实原文映射、页面定位、断言和设备行为仍由 `case_run` 单独核验。
 
-需要 MinoScout `0.1.149`。本次不要求 MinoNexus 或 MinoWorkbench 升级。
+需要 MinoScout `0.1.150`。本次不要求 MinoNexus 或 MinoWorkbench 升级。
 
 ## 0.1.13
 
