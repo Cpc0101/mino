@@ -5,7 +5,7 @@ description: 从 GitHub 安装或更新 Mino 技能到 Codex、Cursor（可选 C
 
 # 更新 Mino 技能与检查 Scout
 
-源仓库：`https://github.com/pengchengluoyi/mino.git`（技能在 `skills/`）。版本以根目录 `VERSION`、`CHANGELOG.md` 为准。
+源仓库：`https://github.com/Cpc0101/mino.git`（技能在 `skills/`）。版本以根目录 `VERSION`、`CHANGELOG.md` 为准。
 
 ## 先做只读预检
 
@@ -35,7 +35,7 @@ python3 "<mino-skill-dir>/scripts/check_updates.py" --json
 
 ```bash
 TMP=$(mktemp -d)
-git clone --depth 1 https://github.com/pengchengluoyi/mino.git "$TMP/mino"
+git clone --depth 1 https://github.com/Cpc0101/mino.git "$TMP/mino"
 DEST="$HOME/.codex/skills"   # Cursor 改成 $HOME/.cursor/skills
 mkdir -p "$DEST"
 for d in "$TMP/mino/skills"/*/; do

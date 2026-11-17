@@ -2,6 +2,11 @@
 
 每个版本写清需要的 Scout / Nexus 版本。技能说的和实际对不上时，先核对这里。
 
+## 0.1.18
+
+- 将技能版本检查、安装文档与示例地址切换到迁移后的正式仓 `https://github.com/Cpc0101/mino.git`。旧仓库路径的 raw 内容仍有独立 CDN 缓存，会继续返回 `0.1.16`，正式地址已返回新版本；启动预检不再依赖旧路径。
+- 本版仅修复 Skill 发布源地址，继续要求 MinoScout `0.1.152`、MinoNexus `0.1.87`，不要求 MinoWorkbench 升级。
+
 ## 0.1.17
 
 - 修复 `mino` 启动更新预检在部分 Python 环境中因系统根证书缺失导致的 `SSL: CERTIFICATE_VERIFY_FAILED`。检查器现在优先使用 `certifi` CA，无法通过 urllib 获取时再用系统 `curl` 兜底；联网成功时不再把 Skill 状态误报为 `unknown`。

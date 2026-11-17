@@ -30,7 +30,7 @@ Codex 首次配置还要检查 `~/.codex/AGENTS.md` 是否含 Mino 托管路由�
 
 也可对 agent 说：
 
-> 帮我从 https://github.com/pengchengluoyi/mino.git 安装 Mino Skill 到 ~/.codex/skills（复制，不要软链）。装好后按 onboarding 带我上手。
+> 帮我从 https://github.com/Cpc0101/mino.git 安装 Mino Skill 到 ~/.codex/skills（复制，不要软链）。装好后按 onboarding 带我上手。
 
 装完后**新开一个会话**。版本见已装目录里的 `VERSION`、`CHANGELOG.md`。
 

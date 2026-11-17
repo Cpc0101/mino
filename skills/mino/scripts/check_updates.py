@@ -16,7 +16,7 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-SKILL_VERSION_URL = "https://raw.githubusercontent.com/pengchengluoyi/mino/main/VERSION"
+SKILL_VERSION_URL = "https://raw.githubusercontent.com/Cpc0101/mino/main/VERSION"
 SCOUT_MANIFEST_URL = "https://github.com/Cpc0101/MinoScout/releases/latest/download/manifest.json"
 DEFAULT_SKILL_ROOTS = ("~/.codex/skills", "~/.cursor/skills", "~/.claude/skills")
 DEFAULT_ROUTING_POLICY = "~/.codex/AGENTS.md"
