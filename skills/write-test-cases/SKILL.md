@@ -18,6 +18,9 @@ python -c "import mino_scout, pathlib; print(pathlib.Path(mino_scout.__file__).p
 设备动作不挂在 `case` 上。先把被测应用实例化，再通过实例操作：
 
 ```python
+RUN_PURPOSE = "regression"
+MODEL_POLICY = {"mode": "off"}
+
 def run(case):
     camera = case.init(case.config.camera)         # 绑定 config.yaml 里的 camera
     with case.nexus.prep("清理应用缓存", source_ref="P1"):
@@ -26,9 +29,8 @@ def run(case):
         camera.launch()
     with case.nexus.do("2-2 点击快拍按钮", source_ref="S2"):
         camera.tap("splash.quick_snap")             # page_key.control_id，页面在 pages/camera/
-    with case.nexus.check("出现取景框", source_ref="E1"):
+    with case.nexus.check("进入取景页面", source_ref="E1"):
         camera.on_page("viewfinder")
-        camera.vlm("画面里有取景框", verdict="pass")
 ```
 
 三类对象：
@@ -65,7 +67,7 @@ with case.nexus.do("使用邮箱验证码登录", source_ref="S1"):
     login(app, case.scout)  # flows 内可以点页面、取 OTP；不能写 check/assert/报告
 
 with case.nexus.check("登录后进入个人主页", source_ref="E1"):
-    app.expect(page="个人主页", prompt="当前显示当前账号的个人主页")
+    app.on_page("个人主页")
 ```
 
 上面的业务步骤、预期归属和断言都在用例文件里；`login()` 只是操作机制。若共享 helper 需要 `case_id` 才知道做什么，它就属于错误的集中式业务实现。
@@ -89,9 +91,13 @@ def run(case):
 
 分辨率兼容性测试必须**一个分辨率一份用例文件**；该文件按对应视口下的真实 hierarchy、控件位置、换行和显隐状态编写定位与断言。不要在同一脚本里切换分辨率，也不要把一套普通功能用例强行复用到所有分辨率。必要时在 `pages/<APP_KEY>/` 下为该分辨率单独维护页面和控件映射。
 
-## 2. 步骤事件就是测试报告
+## 2. 业务步骤与测试结论
 
 `case.nexus` 是保留的脚本 API 名。`prep/do/check/note` 写入 Scout 本地记录；账号租用仍请求 Nexus。Workbench 根据记录展示原文、步骤和证据：
+
+- `prep/do/check` 只描述原文对应的业务行为；定位比较、截图采集、模型调用、等待和调试说明属于执行诊断。`note` 补事实，不计作问题或有效断言。
+- 编写探路使用 `RUN_PURPOSE="authoring"`，正式验收使用 `verification`，交付回归使用 `regression`。阶段声明不豁免原文覆盖和有效断言要求。修复后的 attempt 独立保留，不能覆盖先前失败。
+- 报告先给本次范围、预期通过/未通过/未核验/未执行及具体差异，再给证据。`fail` 不是产品缺陷；定位、脚本、OCR、模型策略问题归自动化，资源不足归阻塞，业务差异有证据后仍需说明归因依据。报告消费结构化 `test_report` 与 `assertion/result`，不把日志中的“失败/重试”字样当成问题数。
 
 - `title` 写**这一步具体做什么 / 验证什么**的一句话，取用例原文的意思，例如 `do("输入手机号并点击获取验证码")`、`check("提示验证码已发送")`；
 - 不要写 `do("步骤1")`、`do("操作")`，报告里会看不出哪一步坏了；
@@ -123,19 +129,17 @@ def run(case):
 | `clear_cache()` | ✓ | declined | – | – | – |
 | `read_data(key)` `set_ime(ime)` | ✓ | – | – | – | – |
 | `reload()` `open_tab(url)` `switch_tab(i)` `upload(path, c)` `wait_ready(ms, c)` | – | – | ✓ | – | – |
-| `screenshot()` `sample(ms, interval)` `hierarchy()` `on_page(page)` `expect(page=, prompt=)` `vlm(...)` `vlm_frame(i, ...)` | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `screenshot()` `sample(ms, interval)` `hierarchy()` `ocr(...)` `on_page(page)` `expect(page=, prompt=)` `expect_text/state/count/value(...)` `wait_for(...)` `vlm(...)` `vlm_frame(i, ...)` | ✓ | ✓ | ✓ | ✓ | ✓ |
 
 `c` 表示控件，写 `page_key.control_id`。`tap` / `input` / `long_press` 可带 `index=`，取同一选择器命中的第几个（0 起，按屏幕顺序）。目前只有 Android 消费 `index`，其他渠道带它会直接 `declined`。所有方法返回 `ActionResult`（`ok`、`summary`、`status`、`data`），`vlm` 系列返回字符串。
 
-### 断言用 `expect`，不要一上来就 `vlm`
+### 普通用例默认零模型调用
 
-`app.expect(page="登录页", prompt="当前是登录页")` 按顺序取：
+新用例声明 `MODEL_POLICY={"mode":"off"}`；省略时运行时同样关闭模型。页面身份用 `on_page` 或 `expect(page=...)`，业务文字、状态、数量和值分别用 `expect_text` / `expect_state` / `expect_count` / `expect_value`。`wait_for` 有截止时间，只轮询观察，最后注册一次断言；不靠反复调用模型等待页面。
 
-1. 给了 `page`，先独立验证页面锚点；失败就报告该断言失败；
-2. 还给了 `prompt`，必须继续验证这条业务预期，不能因在正确页面就跳过；
-3. 文本明确回答 no 就失败；只有证据不足时才让视觉模型看新的截图。
+只有原文需要开放文本语义评价或复杂视觉语义，并且确定性方法不足时，才按 [断言、OCR 与模型例外](references/assertions-and-models.md) 声明原文引用、用途、理由、次数和耗时预算。`expect(prompt=...)` 必须显式 `allow_model=True`；它仍可能调用 LLM/VLM，不能用于普通固定文案检查。VLM 找位置只允许在声明过的 authoring 探路中使用，交付定位优先真实节点，再用显式 OCR 文字/相对关系。
 
-每次有效断言写 `assertion/result`，含 checker、原文引用和观察引用。纯数据比较用 `case.nexus.assert_equal(actual, expected)`；预期依赖画面（配色、3D 预览、加载动画）时直接用 `vlm(verdict="pass")`。
+每次有效断言写预期、实际、原文与观察引用。`source_ref` 只是关联编号，不证明语义覆盖：原文 E1 含可见、首位、系列、无重复四个条件时，必须分别验证这四项；登录和到达页面放入前置或操作，不能占用 E1 代替业务验证。交付前逐项对照原文与实际执行的判定，缺失保持未核验。页面成立不能替代业务条件成立。观察截断、缺属性、OCR 置信度不足或多候选时保留未核验/阻塞；不得把未知改成通过。数据比较用 `case.nexus.assert_equal`，页面身份断言不证明账号、数据或业务操作成功。
 
 ## 4. 视觉判定与坐标
 
@@ -145,6 +149,7 @@ def run(case):
 - Web 的 `app.screenshot()` 默认 `full_page=True`，截取完整文档；只有明确需要当前视口时才写 `full_page=False`；
 - 原图与完整事件保存在 Scout。Workbench/Agent 按需通过 Nexus 转发读取，Nexus 不长期保存完整截图；
 - `tap_xy` / `drag` 只在控件定位不了、必须依据视觉结果点位置时才用；能用 `pages` 控件就不要用坐标。`vlm` 不返回节点，也不能当成 `locator_spec`。
+- 可见文字缺少原生节点时，用 Scout 的 `app.ocr()` 采集文字/边框/置信度，再将实测文字与相对关系声明成 `kind: ocr_text`。不在脚本内安装或自实现 OCR，不保存截图绝对坐标；各端的坐标转换由 Scout 负责。配置与限制见上述参考。
 
 ## 5. 规则
 
@@ -152,6 +157,7 @@ def run(case):
 - 多个应用就多个实例，各管各的页面和截图；同一用例里顺序执行，不并行；
 - 控件写 `page_key.control_id`，页面里没有的控件不点；
 - `locator_spec` 的值必须是这台设备当前界面节点上的 `resource_id`、`text` 或 `content_desc`，逐字复制。用例正文、按钮的中文说法、页面 `label` 都不是选择器。没有这份节点时，页面只留 `id` 和 `label`，不要写 `locator_spec`，也不要写对应的 `tap` / `input`；
+  唯一补充是显式 OCR 定位：`ocr_text` 的文字必须来自本次 Scout OCR 结果，区域及相对目标经过该设备核验。OCR 是独立选择器，原生定位失败后不会自动切到它或 VLM。
 - 同一屏上这个值出现多次就不能用。优先唯一的 `resource_id`，其次唯一的 `content_desc`，最后才是唯一的 `text`。不可点击的标题和可点击的按钮文案相同，只算可点击的那一个。页面锚点同样只取这一屏真实出现过的文字；
 - 用例叫法能对上某个节点的 `text` 或 `content_desc`，定位就用这份文字。对不上时，用这一步截图判断目标在画面的哪一块，只在该区域的真实节点里比较 `locator_spec`。视觉给出的位置不写入 `pages`，也不写 `bounds` 或 `tap_xy`。哪一份定位匹配度最高，用下一次 `case_run` 点一下再读界面来定，不能把视觉结果原样落成选择器；
 - 一格 `selector` 之外还能加 `selectors` 列表，写多把备选（`resource_id` / `text` / `content_desc` / `class` 混着写）。解析按 `resource_id` → `text` → `content_desc` → 包含匹配 → `class` 逐级试，谁先命中用谁。同名节点多时，先用 `resource_id` 收窄，再退回文字；
@@ -186,7 +192,7 @@ def run(case):
    - 还没有真实定位时，脚本只做到达这一屏所必需的事，并调用 `app.hierarchy()` 和 `app.screenshot()`。能用已写好的 `page_key.control_id` 就 `tap` / `input`，没有定位就不点；
    - 通过基础静态检查后，按已有授权 commit/push，用所选设备 `case_run`。只有采集的脚本可能返回 blocked/assertion_missing；这是有证据的探路，不能计为正式通过，继续补齐定位与断言；
    - 从这次会话的 `tool/result` 取界面：`capability_id=hierarchy` 的 `nodes`。没有 `nodes` 时才读同条事件的 `hierarchy_text`，并且只抄里面真实出现的属性。截图用 `session_screenshot`；
-   - 一步做完不要只读一帧。用 `app.sample` 连续截几秒，并在这段时间里多次 `app.hierarchy()`。页面可能过一会儿才换。只凭一次读取就说没进到目标页，证据不够；
+   - 页面可能延迟切换，先用有截止时间的 `wait_for` / 确定性断言等待目标。原文需要观察动画或时间序列时才使用 `sample`；不要为每个动作固定采样几秒或逐帧调 VLM。
    - 用这些节点写 `pages/<APP_KEY>/<page_key>.yaml`，只写测过的 `locator_spec`。文字对得上就用文字。对不上时，截图只用来圈定区域，在该区域节点里选出匹配度最高的定位，再用下一次 `case_run` 核对。截图上的坐标不进页面文件；
    - 把对应用例原文的 `prep` / `do` / `check` 补进脚本，只点页面里已经有定位的控件；
    - 一步不是单个控件能完成时（登录填表、滑到底再确认、一组连续输入），写成 `flows/<name>.py`，函数接收 `app`、页面对象、`case.scout` 或普通值，里面不写 `case.nexus.*`、业务断言或用例编号。纯计算、不碰设备的逻辑写成 `scripts/<name>.py`。用例里 `from flows...` 或 `from scripts...` 调用。这两处也要随同一轮 `case_run` 调试，不能只留页面文件；

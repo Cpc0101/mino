@@ -71,6 +71,7 @@ description: 通过 Nexus 运行已写好的用例，读取执行 Scout 的记�
 ## 2. 读结果
 
 - `task_get`：`status`、`cases[]`、`pass_rate`、`resource_isolated`；
+- `session_record`：实时摘要及封存的 `test_report`。内容分析直接读摘要与事件，不要求打开 Workbench 或截图报告页面；页面截图只用于排版验收。截图证据仅在原文需要视觉验证或现有结构化证据不足时按需读取。
 - `session_events`：新记录返回 items（seq/ts/type/payload）、next_seq、high_watermark、has_more、sealed。`node/enter` / `node/leave` 对应作用域；动作有 `tool/call` / `tool/result`；有效断言是 `assertion/result`。按 source_ref/source_hash/step_id/observation_id 关联原文和证据，截图用 artifact_id。字段以实际返回为准，保留旧会话兼容。
 - `run/snapshot` 保存本次从 `CASE_SOURCE` 指定位置读取的原文快照（兼容旧 YAML）、配置的脱敏快照与文件哈希。归因使用本次 snapshot，不拿后来修改的仓库内容替代历史原文。
 - 执行 Scout 离线时，Nexus 可能仍显示最后同步结论；详情返回暂不可用。明确说明原节点和最后同步时间，不把空响应当作“没有错误”，不把离线当作测试失败，也不改用另一节点的记录。
@@ -103,7 +104,11 @@ description: 通过 Nexus 运行已写好的用例，读取执行 Scout 的记�
 
 ## 3. 在对话里怎么汇报
 
-简短说明：用例数及实际通过/失败/阻塞/未执行数；失败的原文条目和作用域；归因依据及不确定处；Workbench report_url。带上环境、原执行 Scout、revision 和 attempt 标识。优先使用服务返回的 report_url，不猜链接。
+先给测试结论：本次用例数、实际通过/失败/阻塞/未执行数及原文预期的通过/未通过/未核验/未执行。新摘要 `test_report` 是 Scout 从本次事实生成的业务索引；其中 suspected_product 是有待归因的业务差异，不能说成已确认产品缺陷。断言总数包含页面身份及辅助检查，不能当作通过用例数或预期数。
+
+具体问题逐项写「原文引用与要求 → 实际执行的判定 → 实际观察 → 判定与归因依据 → 证据」。`source_ref` 相同但判定内容不符时标为映射问题，不能把登录通过算作模板等业务预期通过；不调用模型给错误映射补一个肯定结论。单列自动化问题、环境阻塞、原文差异、未验证项。定位、等待、模型请求和编写修复只放诊断，不混入业务问题。带上阶段、环境、原执行 Scout、revision 和 attempt；编写探路不计作正式回归。优先使用服务返回的 Workbench report_url，不猜链接。
+
+模型消耗分别汇报 LLM/VLM 次数、模型耗时和服务返回的 token；缺用量标明未报告。只有完整记录或封存索引才能统计完整范围，读取一页事件只能说明当前已读取部分。
 
 规则：
 

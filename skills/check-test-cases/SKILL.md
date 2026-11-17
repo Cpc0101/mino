@@ -58,6 +58,8 @@ mino-scout check --require-cases .
 | `import_missing` / `import_symbol_missing` | 同仓模块或导入对象不存在 | 检查文件、函数定义与导入路径 |
 | `page_missing` / `control_unknown` / `locator_missing` | 页面或控件引用无效 | 用本次从 Scout 取得并核对过的界面结构补页面，不编造定位 |
 | `check_empty` / `check_no_assertion` | `check` 只有标题或观察，没有有效断言 | 使用注册断言验证原文预期 |
+| `model_implicit` | `expect(prompt=...)` 未显式声明模型使用 | 固定文字/状态改用确定性断言；语义验证需 allow_model=True 和 MODEL_POLICY |
+| `model_policy` | 模型策略不是字面量、缺用途/引用/预算，或用例及共享模块使用了未允许的模型 | 默认 mode=off；确需语义判断时按 write-test-cases 的模型例外声明，运行时仍核对当前原文引用与预算 |
 | `check_assertion_unresolved` | helper 是否真正产生断言不能静态确认 | 运行后确认对应 check 有 assertion/result |
 | `source_remote/info` | 静态检查不读取 Feishu 原文；该提示对每条 `CASE_SOURCE` 固定出现 | 不是缺陷，保留 `CASE_SOURCE`，在 `case_run` 证据中核验原文映射与覆盖 |
 | `source_dynamic/warning` / `source_unmapped/warning` | 动态引用或覆盖无法静态确认 | 用执行记录确认覆盖；不能把未知当成已通过 |

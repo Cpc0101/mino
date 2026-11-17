@@ -66,6 +66,8 @@ description: 在已绑定的脚本仓里组织目录、写 config.yaml / pages�
 
 ## 2. config.yaml
 
+页面控件缺原生文字节点时可以显式使用 `kind: ocr_text`，文字、区域、相对目标来自本次 Scout OCR 并经设备核验；格式见 [断言、OCR 与模型例外](../write-test-cases/references/assertions-and-models.md)。OCR 定位保存在对应平台 cell，不在 config.yaml 增加模型或 OCR 服务配置。不会在普通节点定位失败后自动调用 OCR/VLM。
+
 放仓库根目录。顶层只有 `apps`，每个应用一项。**key 用英文字母开头的英文、数字、下划线**（`baidu_android`、`baidu_web` 都行），这个 key 同时是脚本里 `case.config.<KEY>` 的名字（所以要是合法的 Python 变量名）和 `pages/<KEY>/` 的目录名。
 
 每个应用**必须有 `platform`**。**不要写 `app_id` / `project_id`**：同步时 Nexus 按 key 对齐或自动创建应用，并把映射留在 Nexus 清单里。
