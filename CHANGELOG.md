@@ -2,6 +2,15 @@
 
 每个版本写清需要的 Scout / Nexus 版本。技能说的和实际对不上时，先核对这里。
 
+## 0.1.20
+
+- 缺数据的查找、构造和续跑决策只归 Agent；账号标签和对象台账辅助选数，缺记录不阻塞执行。
+- 用例使用运行时数据绑定和动态对象定位；应用 flows 复用 Scout SDK 阶段观察、有限等待和对象验证，明确生成模板随 Scout 分发。
+- Agent 四阶段进度和调查预算通过 Nexus MCP agent_workflow_* 保存到服务端数据库；移除技能仓新增的三个 Python 执行脚本及本地进度数据库。
+- 探针、准备和正式验证分开统计，报告绑定原 task/session/attempt/revision 和带时区时间，后续成功不覆盖旧任务。
+
+需要 MinoScout `0.1.153`、MinoNexus `0.1.88`、MinoWorkbench `0.0.59`。技能更新后需要新开会话加载。
+
 ## 0.1.19
 
 - Mino 启动预检升级到 schema 3：需要本机变更时返回 `consent_required=true` 和逐项 `consent_actions`，包含稳定的 `id`、中文问题、影响、可执行命令、是否需新会话及服务中断标记；预检本身仍严格只读。

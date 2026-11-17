@@ -9,6 +9,8 @@ description: 将已有人工用例实现为可复用的 MinoScout Python 脚本�
 
 **UI 工具边界：**被测 Android / iOS / Web / 桌面界面的观察、截图、控件树、定位、点击和输入只能来自 Scout Case API，并通过 MCP `case_run` 执行。不得先用 Computer Use、浏览器控制、Playwright、adb、Appium、WDA 或其他桌面自动化工具探路或抄 DOM。
 
+多轮编写按 [Agent 进度与预算](../mino/references/workflow-ledger.md) 记录本轮目标、证据及尝试结果；相同阻塞无新事实时改变有依据的方案或交付阶段，并继续独立用例。源码交付与实际验证分别记录，用户指定发布后测试时先完成本地开发及静态检查。
+
 方法签名以本机安装的运行时为准，不确定时读源码，不要凭记忆：
 
 ```bash
@@ -43,7 +45,7 @@ def run(case):
 | `case.scout` | 否 | `wait(ms)`、`otp(account)`、`llm(prompt, text, schema)` |
 | `case.nexus` | 否 | `prep/do/check(title, source_ref="")`、`assert_equal(actual, expected, message="")`、`account(requirements=None, prefer=None)`、`note(text, **fields)`、`fail(message)` |
 
-`case` 上只有 `config`、`env`、`init`、`scout`、`nexus`。`case.tap(...)`、`case.launch()` 这类写法不存在。写错方法名，运行时会报出相近的名字和可用列表，按提示改。
+`case` 上通过 `config`、`env`、`init`、`scout`、`nexus` 组织执行，`data` 保存本次输入和对象输出。`case.tap(...)`、`case.launch()` 这类写法不存在。写错方法名，运行时会报出相近的名字和可用列表，按提示改。
 
 ### 单文件可审性（硬约束）
 
@@ -55,18 +57,18 @@ def run(case):
 - 真前置无法建立时，可以在本文件直接写 `prep`、说明具体缺口的 `note`，并调用 `case.nexus.fail(...)` 或抛出 `ScriptAbort`。必须指出这条用例缺什么，不能生成“加载中”“待接入”之类空跑文件凑数量。
 - 禁止把整个业务用例委托给共享函数，例如 `run_articulated_case(case, "UAT-001", prep)`、`run_case(case, case_id)`、`handler_table[case_id](case)`；也禁止 `if case_id == ...`、`match case_id`、`_actual(case_id)` 等按编号分派。
 - 禁止在共享文件维护 `_case_001`、`_case_002` 一类 handler，或 `BLOCKED = {"UAT-001": ...}` 一类中央用例表。一个用例现在做不到，就在该用例文件里直接写真实阻塞原因，或直接向用户报告，不要制造 47 个通用占位 wrapper。
-- `run(case)` 不能只是一个 `with prep` 加一次共享 dispatch。共享 helper 可以在 `with` 块内执行设备动作，但不能替用例发报告、写业务断言、决定用例是否阻塞，也不能知道用例编号。
+- `run(case)` 不能只是一个 `with prep` 加一次共享 dispatch。共享 helper 可以在当前 `with` 块内执行明确动作、观察状态和复用验证方法；断言继承当前原文作用域，不替用例创建步骤报告、编排整例或决定是否阻塞，也不能知道用例编号。
 
-共享代码只放可复用的设备机制，不放业务编排：
+共享代码复用明确业务操作、状态观察、对象绑定及验证方法；整例业务编排留在用例文件：
 
-- `flows/<name>.py` 只封装可复用操作机制，例如登录表单填写、滑到底、一组连续输入。函数接收 `app`、页面对象、`case.scout` 或普通值；不得接收整个 `case`，不得调用 `case.nexus.*` 或 `assert_equal`，不得按 `case_id` 改变行为。
+- `flows/<name>.py` 封装明确业务操作、阶段观察、动态对象定位、等待和验证方法。函数接收 `app`、页面对象、`case.scout` 或普通值；不接收整个 `case`，不调用 `case.nexus.*`，不按 `case_id` 改变行为。可在用例 check 作用域内用 `app.expect_*` 注册断言，或返回实际数据供本文件断言。缺数据后的自动构造和恢复策略只由 Agent 决定。
 - `scripts/<name>.py` 只做不碰设备的纯计算。它不接收 `case`，不发事件，不发业务断言。
 
 允许的复用边界：
 
 ```python
 with case.nexus.do("使用邮箱验证码登录", source_ref="S1"):
-    login(app, case.scout)  # flows 内可以点页面、取 OTP；不能写 check/assert/报告
+    login(app, case.scout)  # flow 执行明确操作，步骤与原文归属在用例中
 
 with case.nexus.check("登录后进入个人主页", source_ref="E1"):
     app.on_page("个人主页")
@@ -111,7 +113,7 @@ def run(case):
 - 新转换用例的每个原文条目用 `source_ref` 关联执行前从 `CASE_SOURCE` 读取的原文快照，helper 内动作继承当前作用域的 source_ref。静态映射不证明运行覆盖，运行覆盖也不等于业务断言通过；
 - 设备动作失败默认中止，保留实际 status/reason_code，不捕获失败后继续冒充成功。`check` 中必须实际执行 `on_page`、`expect`、`vlm(verdict="pass")` 或 `case.nexus.assert_equal(...)` 等注册断言。空 check、仅 screenshot/note 或成功的原生 Python `assert` 都不构成有效断言证据；
 - 补充证据用 `case.nexus.note("文字", 键=值)`，不要 `print`；
-- 账号用 `case.nexus.account()` 租用，默认使用服务端项目账号约束（旧 YAML 的 `account_requirements` 保留兼容）；需要时显式传 `requirements={"all": [...], "prefer": [...]}` 或 `prefer=[...]`。只能使用项目已维护的事实，选到账号后仍验证实际前置。仓库不写账号密码、登录方式或验证码策略。验证码用 `case.scout.otp(account)`：账号自带码 → Nexus 项目环境配置的 fixed/Gmail/hitl 策略 → 旧仓库兼容码 → 否则 `otp_requires_human`，不猜码。号池为空或没有匹配账号时由 Nexus 按项目环境配置自动补号。
+- 账号用 `case.nexus.account()` 租用，默认使用服务端项目账号约束（旧 YAML 的 `account_requirements` 保留兼容）；需要时显式传 `requirements={"all": [...], "prefer": [...]}` 或 `prefer=[...]`。业务标签辅助排序，缺省或未命中不阻塞选号；实际使用数据时验证原文业务条件，不做全量库存确认。数据需求用 data_need 字符串留存。仓库不写账号密码、登录方式或验证码策略。验证码用 `case.scout.otp(account)`：账号自带码 → Nexus 项目环境配置的 fixed/Gmail/hitl 策略 → 旧仓库兼容码 → 否则 `otp_requires_human`，不猜码。号池为空或没有匹配账号时由 Nexus 按项目环境配置自动补号。
 
 ## 3. `app` 的方法与渠道支持
 
@@ -158,12 +160,12 @@ def run(case):
 - `case.init(...)` 的第一个参数只能写 `case.config.<KEY>`，不写字面量包名 / 地址；Web 分辨率用例只额外写 `web_resolution="720P|1080P|2K|3K/4K"` 关键字；
 - 多个应用就多个实例，各管各的页面和截图；同一用例里顺序执行，不并行；
 - 控件写 `page_key.control_id`，页面里没有的控件不点；
-- `locator_spec` 的值必须是这台设备当前界面节点上的 `resource_id`、`text` 或 `content_desc`，逐字复制。用例正文、按钮的中文说法、页面 `label` 都不是选择器。没有这份节点时，页面只留 `id` 和 `label`，不要写 `locator_spec`，也不要写对应的 `tap` / `input`；
+- `locator_spec` 使用当前平台真实支持并由 Scout 观察到的属性；Android 可用 `resource_id`、`text`、`content_desc`，Web 可用实测角色、属性及容器关系等。对象数据使用本次变量，不将某平台的属性或 button 角色推广到全部应用。用例正文、按钮的中文说法、页面 `label` 都不是选择器。没有这份节点时，页面只留 `id` 和 `label`，不要写 `locator_spec`，也不要写对应的 `tap` / `input`；
   唯一补充是显式 OCR 定位：`ocr_text` 的文字必须来自本次 Scout OCR 结果，区域及相对目标经过该设备核验。OCR 是独立选择器，原生定位失败后不会自动切到它或 VLM。
 - 同一屏上这个值出现多次就不能用。优先唯一的 `resource_id`，其次唯一的 `content_desc`，最后才是唯一的 `text`。不可点击的标题和可点击的按钮文案相同，只算可点击的那一个。页面锚点同样只取这一屏真实出现过的文字；
 - 用例叫法能对上某个节点的 `text` 或 `content_desc`，定位就用这份文字。对不上时，用这一步截图判断目标在画面的哪一块，只在该区域的真实节点里比较 `locator_spec`。视觉给出的位置不写入 `pages`，也不写 `bounds` 或 `tap_xy`。哪一份定位匹配度最高，用下一次 `case_run` 点一下再读界面来定，不能把视觉结果原样落成选择器；
 - 一格 `selector` 之外还能加 `selectors` 列表，写多把备选（`resource_id` / `text` / `content_desc` / `class` 混着写）。解析按 `resource_id` → `text` → `content_desc` → 包含匹配 → `class` 逐级试，谁先命中用谁。同名节点多时，先用 `resource_id` 收窄，再退回文字；
-- 内容型控件（列表卡片、无文字贴图按钮）用 `kind: class` 圈定，再在脚本里传 `index=` 取第几个，不要写死某一行的文案；
+- 内容型控件用实际容器、组件关系和对象特征收窄；原文指定对象时按运行时引用定位，不默认选首个卡片。只有原文需要某一位置且当前渠道支持 index 时才按序号操作；
 - **不要自己再造 Scout 已有的能力**：
 
 | 不要写 | 改用 |
@@ -179,6 +181,8 @@ def run(case):
 执行时**不会**拦截这些写法，但它们会让脚本绕开取证、超时和取消，所以写完一定用 `check-test-cases` 自检并按提示改掉。
 
 ## 6. 编写流程
+
+涉及输入数据、模型/订单等对象、异步业务或跨页使用时，先读 [运行时数据与业务 flow](references/runtime-data-and-flows.md)。缺数据由 Agent 准备，不在脚本仓加入自动造数或换号恢复分支。
 
 页面参数、点击、截图、界面结构都只来自 Scout 执行这条用例脚本。`app.hierarchy()`、`app.screenshot()`、`app.tap()`、`app.input()` 就是 Scout 的能力。写的时候调用 `case_run`，由 Scout 跑 `script.run`。不要用浏览器、adb、Playwright 或其他工具去看界面、点控件、抄 DOM。
 
@@ -197,8 +201,8 @@ def run(case):
    - 页面可能延迟切换，先用有截止时间的 `wait_for` / 确定性断言等待目标。原文需要观察动画或时间序列时才使用 `sample`；不要为每个动作固定采样几秒或逐帧调 VLM。
    - 用这些节点写 `pages/<APP_KEY>/<page_key>.yaml`，只写测过的 `locator_spec`。文字对得上就用文字。对不上时，截图只用来圈定区域，在该区域节点里选出匹配度最高的定位，再用下一次 `case_run` 核对。截图上的坐标不进页面文件；
    - 把对应用例原文的 `prep` / `do` / `check` 补进脚本，只点页面里已经有定位的控件；
-   - 一步不是单个控件能完成时（登录填表、滑到底再确认、一组连续输入），写成 `flows/<name>.py`，函数接收 `app`、页面对象、`case.scout` 或普通值，里面不写 `case.nexus.*`、业务断言或用例编号。纯计算、不碰设备的逻辑写成 `scripts/<name>.py`。用例里 `from flows...` 或 `from scripts...` 调用。这两处也要随同一轮 `case_run` 调试，不能只留页面文件；
-   - 下一屏重复。原文走完后，脚本必须覆盖每一条前置、操作和预期，不能停在只采集界面的版本。`flows` / `scripts` 搞不定的那一步停下来问，不要换一套工具去点。
+   - 一步不是单个控件能完成时（登录填表、滑到底再确认、一组连续输入），写成 `flows/<name>.py`，函数接收 `app`、页面对象、`case.scout` 或普通值，不调用 `case.nexus.*`、不接整个 case、不按用例编号分派。明确业务操作、状态观察及当前 check 内的 `app.expect_*` 可复用。纯计算、不碰设备的逻辑写成 `scripts/<name>.py`。用例里 `from flows...` 或 `from scripts...` 调用。这两处也要随同一轮 `case_run` 调试，不能只留页面文件；
+   - 下一屏重复。原文走完后，脚本覆盖每一条前置、操作和预期。无法推进时记录实际缺口；缺数据由 Agent 选择明确准备路径，重复阻塞使用本地预算记录收敛，并继续独立条目。仅在缺少必要授权或会改变原文含义时向用户澄清；不换工具绕过 Scout，不停在只采集界面的版本。
 6. 在脚本仓根运行 Scout 静态检查：
 
 ```bash

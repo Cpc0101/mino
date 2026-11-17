@@ -106,7 +106,7 @@ description: 通过 Nexus 运行已写好的用例，读取执行 Scout 的记�
 
 ## 3. 在对话里怎么汇报
 
-先给测试结论：本次用例数、实际通过/失败/阻塞/未执行数及原文预期的通过/未通过/未核验/未执行。新摘要 `test_report` 是 Scout 从本次事实生成的业务索引；其中 suspected_product 是有待归因的业务差异，不能说成已确认产品缺陷。断言总数包含页面身份及辅助检查，不能当作通过用例数或预期数。
+先读 `task_get.statistics` 并给测试结论：本次用例执行次数（多设备分别计）、实际通过/失败/阻塞/未执行数及原文预期的通过/未通过/未核验/未执行。新摘要 `test_report` 是 Scout 从本次事实生成的业务索引；其中 suspected_product 是有待归因的业务差异，不能说成已确认产品缺陷。断言总数包含页面身份及辅助检查，不能当作通过用例数或预期数。
 
 具体问题逐项写「原文引用与要求 → 实际执行的判定 → 实际观察 → 判定与归因依据 → 证据」。`source_ref` 相同但判定内容不符时标为映射问题，不能把登录通过算作模板等业务预期通过；不调用模型给错误映射补一个肯定结论。单列自动化问题、环境阻塞、原文差异、未验证项。定位、等待、模型请求和编写修复只放诊断，不混入业务问题。带上阶段、环境、原执行 Scout、revision 和 attempt；编写探路不计作正式回归。优先使用服务返回的 Workbench report_url，不猜链接。
 
@@ -114,6 +114,34 @@ description: 通过 Nexus 运行已写好的用例，读取执行 Scout 的记�
 
 规则：
 
-- 没有 `session_events` 证据，不下结论；
+- 使用封存的 `test_report` 给本次摘要结论；证据离线时说明保留的是索引，不能宣称已重新读取完整证据；部分事件不代表完整范围；
 - 不把 `blocked` 说成 `failed`，不把 `declined` 说成环境故障；
 - 归因是你的判断，说明依据，不确定就说不确定。
+
+## 数据缺口与阶段收敛
+
+多轮调试使用 [Agent 进度与预算](../mino/references/workflow-ledger.md) 的 Nexus MCP 记录：每轮先 agent_workflow_start、结束后 agent_workflow_finish，allowed=false 时按具体原因收敛；普通 task_get 轮询不算新调查。agent_workflow_get 分列分析、脚本、准备和验证，不能拿 Agent 阶段状态替代 Scout 的测试断言。
+
+缺数据后由 Agent 使用账号数据记忆和当前 Scout 观察选择复用、构造或替代；缺标签/记忆不证明缺数据，不反复申请账号等待匹配。脚本只返回具体缺口并执行明确操作，不在 flows 内自动补数。未知创建结果先查询同一任务；没有新观察不重跑相同阻塞。继续推进独立用例，并分别报告分析、脚本、数据准备及正式验证的完成度。
+
+正式统计只汇总 verification/regression；authoring 探针的执行失败和主动结束保留为诊断。引用明确 task_id/session_id/attempt_id/revision、原文预期结果及记录起止时间；重跑结果不覆盖历史 attempt，不按自由文本或“最新”称呼拼接不同任务。
+
+
+数据准备闭环（只由 Agent 决策）：
+
+1. 调用 `resource_account_select`，传 `project_id/env/app_id/data_requirements`；无记忆匹配仍返回候选。按登录身份与环境选账号，资产记录只作线索，不做库存盘点。
+2. `case_run.case_inputs` 按用例 ID 或脚本路径传 `account_id`、模型等业务对象。脚本 `case.data.require` 缺输入返回 `data_missing`；从 `task_get.cases[].data_missing` 读取具体缺口。
+3. 依据本次观察和授权选择明确准备脚本。通过 `case_run` 新建任务，`source_context={parent_task_id:原任务, purpose:"prepare", data_need:描述}`，`case_inputs` 固定相同账号。Nexus 不决定造数动作。
+4. 读取准备任务 `cases[].data_outputs`，核对对象引用和账号、实际操作及断言。未通过也可能保留已产生对象，不能仅看输出就声称准备通过；写入结果未知先查同一 attempt。
+5. 调用 `resource_account_data_save` 保存已确认对象，`source_task_id` 指向准备任务。使用新 `client_request_id` 再跑原用例，`purpose:"resume"` 指向原任务，传相同 `account_id` 和对象。续跑从脚本起点执行，不恢复旧 UI 句柄，也不覆盖原任务结论。
+6. 每轮明确准备目标与预算；同一缺口且无新证据不重复申请或整例重跑。可据新证据调整明确操作，预算耗尽则交付具体缺口及下一步，推进独立用例。准备任务不进入正式通过/失败统计，原用例仍须真实断言和原文覆盖。
+
+## 统计与报告一致性
+
+`statistics.formal/authoring/preparation/unclassified` 分列，正式通过率只取 formal.pass_rate；无有效判定为 null，不写 0% 或 100%。拒绝、阻塞、跳过、取消、未核验分别列出；completed 是已结束，executed 才是有事实证明的脚本执行。execution_started=no 只说明未确认设备写动作，不能因此称整条脚本未执行。
+
+用例执行次数、statistics.expectations 原文预期数、statistics.assertions 全部断言数、auxiliary_assertions 辅助断言数不能互相替换。检查 cases_reported/cases_missing，摘要不完整时说明缺失范围。申请范围 requested_total、已选执行 total 和原文用例总数单独表述。
+
+每个结论绑定同一 task/session/attempt、revision、source_hash 和记录时间。准备与续跑分别列任务，不合并成原任务通过；历史局部预期单列 task/账号/版本，不能写进“本次已通过”。为过程描述明确指定任务，禁止把较早生成过程称作最新探针过程。
+
+时间使用 statistics.timing 中的带时区记录，缺失写未提供。submitted_at 是提交时间，执行时间来自实际记录，状态同步时间不能当开始/结束。报告生成时间与执行时间分列；“最新”依据实际记录时间和任务身份，不从任务 ID、文件更新时间或当前 HEAD 推测。使用 result_status 判断正式结果，纯准备或探针 done 只表示该任务结束。
