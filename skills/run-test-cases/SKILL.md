@@ -7,6 +7,8 @@ description: 通过 Nexus 运行已写好的用例，读取执行 Scout 的记�
 
 **触发与读结果用 MCP；本机 Scout 运维用 CLI。** Nexus 管任务索引、设备/账号租约和状态投影；Scout 拉仓、独立执行并保存完整记录。Workbench 从 Nexus 取列表，经 Nexus 转发读取原执行 Scout 的详情。临时 Git workspace 删除后，记录和截图仍保留。
 
+执行 Mino 任务时，被测 UI 只经 MCP `case_run` → Scout 操作和取证。不得用 Computer Use、浏览器控制、Playwright、adb、Appium、WDA 或其他桌面自动化工具替代 Scout，也不得先手动点一遍再声称已由 Scout 验证。
+
 开跑前用一两句话告诉用户：将跑哪些用例、哪台设备、哪个环境。
 
 ## 1. 执行

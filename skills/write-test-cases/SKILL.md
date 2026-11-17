@@ -7,6 +7,8 @@ description: 将已有人工用例实现为可复用的 MinoScout Python 脚本�
 
 脚本是 Python，一条用例一个文件，在所选设备所属 Scout 的独立进程执行。先按 [analyze-test-case](../analyze-test-case/SKILL.md) 确定原文位置并在 Python 声明 `CASE_SOURCE` 来源变量；仓库与页面配置见 `repo-config`。完整记录保存在执行 Scout，以 Nexus task_id 归档；Nexus 保存任务索引，Workbench 经 Nexus 读取 Scout 详情。
 
+**UI 工具边界：**被测 Android / iOS / Web / 桌面界面的观察、截图、控件树、定位、点击和输入只能来自 Scout Case API，并通过 MCP `case_run` 执行。不得先用 Computer Use、浏览器控制、Playwright、adb、Appium、WDA 或其他桌面自动化工具探路或抄 DOM。
+
 方法签名以本机安装的运行时为准，不确定时读源码，不要凭记忆：
 
 ```bash

@@ -2,6 +2,15 @@
 
 每个版本写清需要的 Scout / Nexus 版本。技能说的和实际对不上时，先核对这里。
 
+## 0.1.16
+
+- 新增 `mino` 统一入口技能：Nexus 控制面只走 Mino MCP，本机 Scout 只走 `mino-scout`，被测 Android / iOS / Web / 桌面软件和页面操作必须写成用例脚本并经 `case_run` 交给 Scout；不得因为平台提供 Computer Use 而静默换工具。
+- 新增经用户确认的 `AGENTS.md` 持久路由托管块：Skill/MCP 作为软引导，跨会话路由写入 `~/.codex/AGENTS.md`；安装器可幂等检查、应用、移除，只改自己的标记区间。
+- 新会话首次进入 Mino 工作流时，先运行 `scripts/check_updates.py` 只读比较本地 Skill、`mino-scout update-check` 与路由策略，再处理更新和持久路由，最后调用 `agent_guide` 进入业务；输出 `overall_state` / `check_complete` / `unknown_checks`，未知不再被误读为已最新。Skill 更新后需新会话生效；Scout 更新必须使用固定构建并向用户说明中断影响。
+- `update-skills` 覆盖 Codex、Cursor、Claude等(如有)，动态复制 `skills/*/`，禁止软链。
+
+需要 MinoScout `0.1.152`、MinoNexus `0.1.87`。本次不要求 MinoWorkbench 升级。
+
 ## 0.1.15
 
 - 用例编写与自检说明对齐确定性断言、原生节点和本地 OCR；模型调用须明确声明策略与预算，断言和原文映射保存在用例自己的文件中。

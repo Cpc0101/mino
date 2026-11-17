@@ -1,6 +1,6 @@
 ---
 name: onboarding
-description: 第一次让 Mino 能跑：注册登录、OAuth 接 MCP、用 MCP 申请安装命令并经确认后在本机安装 Scout、再按固定顺序建项目 / 绑脚本仓 / 配应用。用户首次使用、缺 MCP、本机无 mino-scout、或要新增节点 / 新项目时使用。
+description: 第一次让 Mino 能跑：安装持久路由、注册登录、OAuth 接 MCP、用 MCP 申请安装命令并经确认后在本机安装 Scout、再按固定顺序建项目 / 绑脚本仓 / 配应用。用户首次使用、缺 MCP、本机无 mino-scout、或要新增节点 / 新项目时使用。
 ---
 
 # 上手（按门禁推进，不要跳步）
@@ -16,7 +16,7 @@ description: 第一次让 Mino 能跑：注册登录、OAuth 接 MCP、用 MCP �
 |---|---|
 | 注册 / 登录 / OAuth 点允许 | **用户**（浏览器） |
 | 申请 Scout 安装命令、建项目、绑仓、同步应用、装渠道程序 | **你**（MCP） |
-| 在本机执行安装（须用户确认弹窗同意）、`probe` / `check`、写仓 push | **你**（本机） |
+| 检查并安装 `AGENTS.md` 路由托管块、执行本机安装（均须用户确认）、`probe` / `check`、写仓 push | **你**（本机） |
 | 安装命令里的一次性凭证 | 只用于当次安装；**不要**写入回复正文、日志、记忆、提交 |
 
 页面和说明对不上、要验证码：让用户描述当前画面，不要猜、不要狂重试。
@@ -32,16 +32,35 @@ description: 第一次让 Mino 能跑：注册登录、OAuth 接 MCP、用 MCP �
 
 开场先说清将按下面顺序做，**用户未确认安装就不要执行安装命令**：
 
-1. 注册登录（若尚未）
-2. Agent 接 MCP
-3. MCP 申请安装命令 → 确认弹窗 → 本机安装并验收 Scout
-4. 项目 → 脚本仓绑定 → 环境与应用 → push → 同步
+1. Mino 只读更新预检 + 经确认安装持久路由策略
+2. 注册登录（若尚未）
+3. Agent 接 MCP，再调用 `agent_guide`
+4. MCP 申请安装命令 → 确认弹窗 → 本机安装并验收 Scout
+5. 项目 → 脚本仓绑定 → 环境与应用 → push → 同步
 
-未完成门禁 1–3，不要写 `config.yaml`、不要 `case_run`、不要自建 GitHub 仓。
+未完成门禁 1–5，不要写 `config.yaml`、不要 `case_run`、不要自建 GitHub 仓。
+
+进入 Mino 任务时先按 `mino` 技能运行更新预检；有 Skill 更新先更新并在需要时新开会话，有 Scout 更新先向用户说明影响并确认。预检失败只能报告 `unknown`，不能当成已是最新。持久路由不是 `current` 时按门禁 1 处理。
 
 ---
 
-## 门禁 1：注册并登录
+## 门禁 1：持久路由策略
+
+1. 运行已安装 `mino` 技能的只读检查：
+
+```bash
+python3 "$HOME/.codex/skills/mino/scripts/install_routing_policy.py" --check
+```
+
+2. 状态不是 `current` 时，告诉用户：只有 Skill/MCP 时，平台仍可能优先用 Computer Use；写入 `$HOME/.codex/AGENTS.md` 的托管块能让后续会话稳定选择 Mino MCP/Scout。
+3. 用户确认后再运行 `--apply`。不得静默写入主目录；遇到 `conflict` 停止并解释，不覆盖现有文件。用户使用 Cursor 或其他客户端时，只在它确实读取 `AGENTS.md` 的情况下用 `--path` 指向对应文件。
+4. 写入或更新后说明需要新开会话才加载；当前会话继续时仍按 `mino` 技能约束，不因为规则未热加载而改用其他 UI 工具。
+
+通过后告诉用户：「持久路由已就绪，下一步注册 / 登录。」
+
+---
+
+## 门禁 2：注册并登录
 
 1. 用户打开 `https://workbench.minocc.top/register`（已有账号则 `/login`）；
 2. 密码 ≥8 位；你不代填、不保存密码。
@@ -50,7 +69,7 @@ description: 第一次让 Mino 能跑：注册登录、OAuth 接 MCP、用 MCP �
 
 ---
 
-## 门禁 2：OAuth 接入 MCP
+## 门禁 3：OAuth 接入 MCP
 
 MCP：`https://nexus.minocc.top/mcp`。
 
@@ -78,7 +97,7 @@ claude mcp add --transport http mino 'https://nexus.minocc.top/mcp'
 
 ---
 
-## 门禁 3：安装并验收 Scout
+## 门禁 4：安装并验收 Scout
 
 Scout 装在**有被测设备的那台电脑**上。
 
@@ -90,7 +109,7 @@ mino-scout
 mino-scout probe
 ```
 
-已有且 `probe` 能看到目标平台设备 → 本节完成，跳到门禁 4。
+已有且 `probe` 能看到目标平台设备 → 本节完成，跳到门禁 5。
 否则进入 3.2。
 
 ### 3.2 同机安装（MCP 申请命令 → 确认 → 执行）
@@ -130,7 +149,7 @@ mino-scout probe
 
 ---
 
-## 门禁 4：项目 → 脚本仓 → 应用（固定顺序）
+## 门禁 5：项目 → 脚本仓 → 应用（固定顺序）
 
 **禁止跳步。禁止用户未要时新建远程 Git 仓。**
 每一步开始前说清要做什么、需要用户确认什么。
@@ -192,7 +211,8 @@ project_script_repo_set(project_id, url, branch)
 
 ## 本节完成态
 
-- [ ] MCP：`project_list` 可用
+- [ ] `AGENTS.md`：Mino 路由策略为 `current`
+- [ ] MCP：`agent_guide` / `project_list` 可用
 - [ ] CLI：`mino-scout` / `probe` 正常，目标设备可见
 - [ ] 项目存在且 `repo_url` / `repo_branch` 已设
 - [ ] `repo_apps_get` 能看到应用身份字段
