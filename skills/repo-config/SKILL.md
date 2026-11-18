@@ -5,7 +5,9 @@ description: 在已绑定的脚本仓里组织目录、写 config.yaml / pages�
 
 # 脚本仓库配置
 
-脚本仓是项目的 Git 仓库（地址在 `project_list` 的 `repo_url`）。执行时 **Scout 用本机 git 拉取**；Nexus 只记地址 / 分支 / 提交与应用清单，不经手文件内容。
+脚本仓是项目的 Git 仓库（地址在 `project_list` 的 `repo_url`）。正式 `case_run` 执行时 **Scout 用本机 git 拉取固定版本到任务执行工作区**；Nexus 只记地址 / 分支 / 提交与应用清单，不经手文件内容。
+
+本机 `debug_case` 直接绑定现有编写工作区，不拉仓、不要求 commit；刷新 pages/flows 后分段验证，生成数据写入独立任务执行工作区。配置身份或环境变化需要重启调试会话。
 
 **边界**
 

@@ -15,8 +15,9 @@ description: Mino 工作流统一入口。用户提到 Mino、Mino Scout/MCP、�
 |---|---|
 | Nexus 项目、应用、需求、账号、设备、任务、记录 | **Mino MCP** |
 | 本机 Scout 状态、探测、静态检查 | **`mino-scout` CLI** |
-| 操作被测 Android / iOS / Web / 桌面软件 | 写用例脚本 → **Mino MCP `case_run`** → Scout 执行 |
-| 被测页面截图、控件树、界面定位、点击和输入 | 用例脚本里的 Scout Case API，经 `case_run` 留存证据 |
+| 本机编写、观察与调试 | **Mino MCP `debug_case` → `debug_case_execute`** → 本机 Scout 保留现场 |
+| 正式执行 Android / iOS / Web / 桌面用例 | 固定脚本版本 → **Mino MCP `case_run`** → 本机或远端 Scout |
+| 被测页面截图、控件树、界面定位、点击和输入 | 用例脚本里的 Scout Case API，经调试会话或 `case_run` 留存证据 |
 
 **禁止默认改用**平台 Computer Use、浏览器控制、Playwright、adb、Appium、WDA 或桌面自动化工具来代替 Scout。调用工具成功、Scout 接单或动作走通都不等于测试通过；只有目标断言和证据成立才算通过。
 
@@ -77,7 +78,8 @@ python3 "<mino-skill-dir>/scripts/install_routing_policy.py" --check
 
 - MCP 工具名把点写成下划线，例如 `agent.guide` 是 `agent_guide`。
 - 先查项目、应用、设备和渠道，再 `case_run`；参数缺失就问，不要猜。
-- 脚本只写在本机脚本仓并通过 Git push；Nexus MCP 不写代码。
+- 编写工作区由本机 Agent 编辑；`debug_case` 直接绑定该目录，不拉仓、不要求 commit。正式 `case_run` 从固定 Git 版本进入独立执行工作区，按 task_id / attempt 保存源码与运行数据。Nexus MCP 不编辑工作区文件。
+- 新会话先观察并验证定位，再扩展用例；远端节点不承担编写调试。调试工具未部署时如实说明，不能宣称具备保留现场能力。
 - push 前运行 `mino-scout check --require-cases .`，有可操作问题就修复后重跑。
 - 凭据、OTP、token 和安装命令一次性凭证不写入回复、日志、记忆或提交。
 

@@ -12,7 +12,7 @@ Mino 是自动化测试系统。当前重点是把已有人工用例转换成可
 | **Nexus** | 云端（`https://nexus.minocc.top`） | 项目/应用/需求元数据、账号池、设备租约、任务派发、状态索引、转发记录读取 | 写脚本；拉 Git；操作设备；长期保存完整执行明细和截图 |
 | **Scout** | 执行器（`mino-scout`） | 连 Nexus、拉仓、独立进程执行、操作设备、断言和截图；按 task_id 持久保存完整记录，重连补报摘要 | 自行扩展测试范围；决定下一条测什么 |
 | **Workbench** | 网页（`https://workbench.minocc.top`） | 从 Nexus 取任务列表，通过 Nexus 读取原执行 Scout 的详情，展示原文/动作/断言/证据 | 替代 Scout 执行或存储原始事实 |
-| **Agent** | 对话侧 | 分析已有用例 → 固定原文 → 编写 Python/页面/流程 → 静态校验 → 真机验证 → 有证据地归因和交付 | 擅自新建远程仓、猜环境和定位、把采集或接单说成测试通过 |
+| **Agent** | 对话侧 | 分析已有用例 → 固定原文 → 本机调试观察 → 编写并验证页面/公共流程 → 完整用例 → 静态校验 → 固定版本正式执行 | 擅自新建远程仓、猜环境和定位、把采集或接单说成测试通过 |
 
 本地状态在 `~/.mino/`。Scout 主动连 Nexus，不开放监听端口。
 
@@ -20,7 +20,7 @@ Mino 是自动化测试系统。当前重点是把已有人工用例转换成可
 
 | 事 | 用什么 | 例子 |
 |---|---|---|
-| 查 / 改 Nexus 控制面 | **MCP** | `project_list`、`project_create`、`project_script_repo_set`、`repo_apps_sync` / `get`、`scout_install_token`、`device_list`、`case_run`、`task_get`、渠道程序安装 |
+| 查 / 改 Nexus 控制面 | **MCP** | `project_list`、`project_create`、`project_script_repo_set`、`repo_apps_sync` / `get`、`scout_install_token`、`device_list`、`debug_case`、`debug_case_execute`、`case_run`、`task_get`、渠道程序安装 |
 | 本机 Scout | **`mino-scout` CLI** | 服务状态、`probe` 设备、仓根 `check` 自检（以本机 `--help` 为准） |
 | 写文件与推送 | **本机 Git** | 编辑脚本仓 → commit → push；MCP **不写**仓 |
 
@@ -28,7 +28,7 @@ Mino 是自动化测试系统。当前重点是把已有人工用例转换成可
 
 ## Agent 硬约束（所有技能共用）
 
-0. **Mino 工作流只用 Mino 的路径**：Nexus 控制面走 Mino MCP，本机 Scout 走 `mino-scout`，被测 Android / iOS / Web / 桌面软件的操作走用例脚本 → MCP `case_run` → Scout。平台 Computer Use、浏览器、Playwright、adb、Appium、WDA 不能因为“更顺手”而替代 Scout；只有用户明确指定其他工具，或检查确认 Mino 不可用并先说明原因时才例外。每个新会话首次进入 Mino 时先运行 `mino` 更新预检，有更新先处理，再确认持久路由并调用 `agent_guide`；首次配置还要经用户确认把路由策略写入 `AGENTS.md`。Skill/MCP 是软引导，不能让平台内置工具在每次会话都可靠让路；需要绝对隔离时还应在客户端或管理策略关闭对应工具。
+0. **Mino 工作流只用 Mino 的路径**：Nexus 控制面走 Mino MCP，本机 Scout 走 `mino-scout`，被测 Android / iOS / Web / 桌面软件的操作走脚本 → MCP `debug_case_execute`（本机调试）或 `case_run`（正式执行）→ Scout。平台 Computer Use、浏览器、Playwright、adb、Appium、WDA 不能因为“更顺手”而替代 Scout；只有用户明确指定其他工具，或检查确认 Mino 不可用并先说明原因时才例外。每个新会话首次进入 Mino 时先运行 `mino` 更新预检，有更新先处理，再确认持久路由并调用 `agent_guide`；首次配置还要经用户确认把路由策略写入 `AGENTS.md`。Skill/MCP 是软引导，不能让平台内置工具在每次会话都可靠让路；需要绝对隔离时还应在客户端或管理策略关闭对应工具。
 1. **先读技能再动手**；缺信息就问，**不要猜**包名、URL、仓库地址、环境名。
 2. **每进入一个大步骤，先用一两句话告诉用户**：将做什么、需要用户确认什么、成功长什么样；做完再报结果。不要闷头连调工具。
 3. **禁止**在用户未明确说「新建仓库 / 创建 GitHub 仓」时 `gh repo create`、初始化并推到新远程。脚本仓地址必须用户给出，或明确授权新建。
@@ -41,13 +41,14 @@ Mino 是自动化测试系统。当前重点是把已有人工用例转换成可
 ## 一次测试的流向
 
 1. 项目 + 脚本仓绑定 + 应用清单就绪（`onboarding` / `repo-config`）；
-2. agent 在本机写脚本并 `mino-scout check`，再 push；
-3. 改了 `config.yaml` 应用身份 → `repo_apps_sync`；
-4. MCP `case_run` → Nexus 将固定仓提交、设备与 task/session/attempt 下发给 Scout；
-5. Scout 持久接单后异步执行，完整记录保留本机，摘要经持久 ACK 同步到 Nexus；
-6. Agent/Workbench 通过 Nexus 读取原 Scout 记录。只采集、静态通过、动作走通、预期通过分别说明，最后按真实证据交付。
+2. agent 启动本机 `debug_case`，观察页面，分段验证 pages/flows，再扩展完整用例；调试保持现场，直接读取编写工作区；
+3. 完成 `mino-scout check`，提交并固定版本，结束调试；
+4. 改了 `config.yaml` 应用身份 → `repo_apps_sync`；
+5. MCP `case_run` → Nexus 将固定仓提交、设备与 task/session/attempt 下发给 Scout；
+6. Scout 持久接单后异步执行，完整记录保留本机，摘要经持久 ACK 同步到 Nexus；
+7. Agent/Workbench 通过 Nexus 读取原 Scout 记录。只采集、静态通过、动作走通、预期通过分别说明，最后按真实证据交付。
 
-Scout 不开放监听端口。Git 临时 workspace 可以删除，任务记录独立保留；节点离线时详情暂不可读，Nexus 的最后同步状态不能充当实时证据。取消、重连和重试不得重放结果未知的写操作。
+Scout 不开放监听端口。编写工作区与执行工作区分开；正式执行的源码、输出和证据保存在任务 ID / attempt 对应目录，不在执行结束时删除源码。远端 Scout 仅用于正式执行；节点离线时详情暂不可读，Nexus 的最后同步状态不能充当实时证据。取消、重连和重试不得重放结果未知的写操作。
 
 ## 该用哪个技能
 

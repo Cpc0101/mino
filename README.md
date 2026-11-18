@@ -20,7 +20,7 @@
 
 入口先读 `mino`；之后按 `overview` → `onboarding` → `repo-config` → `analyze-test-case` → `write-test-cases` → `check-test-cases` → `run-test-cases`。
 
-Nexus 保存任务索引和设备/账号租约，Scout 独立执行并按 task_id 保留完整本地记录，Workbench 经 Nexus 读取原执行 Scout 的详情。Git 临时 workspace 可清理；记录不随之删除。节点离线时详情暂不可读，接单成功不等于测试通过。
+Nexus 保存任务索引和设备/账号租约，Scout 独立执行并按 task_id 保留完整本地记录，Workbench 经 Nexus 读取原执行 Scout 的详情。编写目录与执行目录分开；正式源码、输出和证据按 task/attempt 保留。本机调试持续保留现场，刷新代码后分段验证。节点离线时详情暂不可读，接单成功不等于测试通过。
 
 ## 安装给 Codex / Cursor
 

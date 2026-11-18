@@ -7,7 +7,7 @@ description: 将已有人工用例实现为可复用的 MinoScout Python 脚本�
 
 脚本是 Python，一条用例一个文件，在所选设备所属 Scout 的独立进程执行。先按 [analyze-test-case](../analyze-test-case/SKILL.md) 确定原文位置并在 Python 声明 `CASE_SOURCE` 来源变量；仓库与页面配置见 `repo-config`。完整记录保存在执行 Scout，以 Nexus task_id 归档；Nexus 保存任务索引，Workbench 经 Nexus 读取 Scout 详情。
 
-**UI 工具边界：**被测 Android / iOS / Web / 桌面界面的观察、截图、控件树、定位、点击和输入只能来自 Scout Case API，并通过 MCP `case_run` 执行。不得先用 Computer Use、浏览器控制、Playwright、adb、Appium、WDA 或其他桌面自动化工具探路或抄 DOM。
+**UI 工具边界：**被测 Android / iOS / Web / 桌面界面的观察、截图、控件树、定位、点击和输入只能来自 Scout Case API，本机编写通过 MCP `debug_case` / `debug_case_execute` 执行，正式用例通过 `case_run` 执行。不得先用 Computer Use、浏览器控制、Playwright、adb、Appium、WDA 或其他桌面自动化工具探路或抄 DOM。
 
 多轮编写按 [Agent 进度与预算](../mino/references/workflow-ledger.md) 记录本轮目标、证据及尝试结果；相同阻塞无新事实时改变有依据的方案或交付阶段，并继续独立用例。源码交付与实际验证分别记录，用户指定发布后测试时先完成本地开发及静态检查。
 
@@ -100,7 +100,7 @@ def run(case):
 `case.nexus` 是保留的脚本 API 名。`prep/do/check/note` 写入 Scout 本地记录；账号租用仍请求 Nexus。Workbench 根据记录展示原文、步骤和证据：
 
 - `prep/do/check` 只描述原文对应的业务行为；定位比较、截图采集、模型调用、等待和调试说明属于执行诊断。`note` 补事实，不计作问题或有效断言。
-- 编写探路使用 `RUN_PURPOSE="authoring"`，正式验收使用 `verification`，交付回归使用 `regression`。阶段声明不豁免原文覆盖和有效断言要求。修复后的 attempt 独立保留，不能覆盖先前失败。
+- 编写探路进入 `debug_case`，片段不要求原文覆盖和业务断言，结果只作调试记录。正式 `case_run` 使用 `verification` / `regression`，完整性门禁保持有效；只改 `RUN_PURPOSE` 不会把正式任务变成调试会话。修复后的正式 attempt 独立保留，不能覆盖先前失败。
 - 报告先给本次范围、预期通过/未通过/未核验/未执行及具体差异，再给证据。`fail` 不是产品缺陷；定位、脚本、OCR、模型策略问题归自动化，资源不足归阻塞，业务差异有证据后仍需说明归因依据。报告消费结构化 `test_report` 与 `assertion/result`，不把日志中的“失败/重试”字样当成问题数。
 
 - `title` 写**这一步具体做什么 / 验证什么**的一句话，取用例原文的意思，例如 `do("输入手机号并点击获取验证码")`、`check("提示验证码已发送")`；
@@ -163,7 +163,7 @@ def run(case):
 - `locator_spec` 使用当前平台真实支持并由 Scout 观察到的属性；Android 可用 `resource_id`、`text`、`content_desc`，Web 可用实测角色、属性及容器关系等。对象数据使用本次变量，不将某平台的属性或 button 角色推广到全部应用。用例正文、按钮的中文说法、页面 `label` 都不是选择器。没有这份节点时，页面只留 `id` 和 `label`，不要写 `locator_spec`，也不要写对应的 `tap` / `input`；
   唯一补充是显式 OCR 定位：`ocr_text` 的文字必须来自本次 Scout OCR 结果，区域及相对目标经过该设备核验。OCR 是独立选择器，原生定位失败后不会自动切到它或 VLM。
 - 同一屏上这个值出现多次就不能用。优先唯一的 `resource_id`，其次唯一的 `content_desc`，最后才是唯一的 `text`。不可点击的标题和可点击的按钮文案相同，只算可点击的那一个。页面锚点同样只取这一屏真实出现过的文字；
-- 用例叫法能对上某个节点的 `text` 或 `content_desc`，定位就用这份文字。对不上时，用这一步截图判断目标在画面的哪一块，只在该区域的真实节点里比较 `locator_spec`。视觉给出的位置不写入 `pages`，也不写 `bounds` 或 `tap_xy`。哪一份定位匹配度最高，用下一次 `case_run` 点一下再读界面来定，不能把视觉结果原样落成选择器；
+- 用例叫法能对上某个节点的 `text` 或 `content_desc`，定位就用这份文字。对不上时，用这一步截图判断目标在画面的哪一块，只在该区域的真实节点里比较 `locator_spec`。视觉给出的位置不写入 `pages`，也不写 `bounds` 或 `tap_xy`。哪一份定位匹配度最高，用同一调试会话的下一片段点一下再读界面来定，不能把视觉结果原样落成选择器；
 - 一格 `selector` 之外还能加 `selectors` 列表，写多把备选（`resource_id` / `text` / `content_desc` / `class` 混着写）。解析按 `resource_id` → `text` → `content_desc` → 包含匹配 → `class` 逐级试，谁先命中用谁。同名节点多时，先用 `resource_id` 收窄，再退回文字；
 - 内容型控件用实际容器、组件关系和对象特征收窄；原文指定对象时按运行时引用定位，不默认选首个卡片。只有原文需要某一位置且当前渠道支持 index 时才按序号操作；
 - **不要自己再造 Scout 已有的能力**：
@@ -182,35 +182,18 @@ def run(case):
 
 ## 6. 编写流程
 
-涉及输入数据、模型/订单等对象、异步业务或跨页使用时，先读 [运行时数据与业务 flow](references/runtime-data-and-flows.md)。缺数据由 Agent 准备，不在脚本仓加入自动造数或换号恢复分支。
+涉及业务数据与对象准备时，先读 [运行时数据与业务 flow](references/runtime-data-and-flows.md)。首次进入编写现场时，读 [本机调试会话与两套工作区](references/debug-workspaces.md)。
 
-页面参数、点击、截图、界面结构都只来自 Scout 执行这条用例脚本。`app.hierarchy()`、`app.screenshot()`、`app.tap()`、`app.input()` 就是 Scout 的能力。写的时候调用 `case_run`，由 Scout 跑 `script.run`。不要用浏览器、adb、Playwright 或其他工具去看界面、点控件、抄 DOM。
+1. **需求拆解**：按 `analyze-test-case` 固定原文与版本，明确每条前置、操作和业务预期。需求决定测什么，真实页面决定怎么操作。
+2. **确认本机现场**：使用 `mino-scout status` 确认本机节点，以 MCP `device_list` 核验该节点设备可执行。没有本机设备时可以整理需求、记录缺口，不能编造定位或声称路径已验证。远端 Scout 只用于正式执行。
+3. **启动调试会话**：在整个应用的编写工作区内维护 `config.yaml`、`tests/`、`pages/`、`flows/`。`debug_case` 显式传本机 `node_id`、`sn`、工作区绝对路径、应用 key、环境和请求 ID，不传 Git 地址或 commit。先确认当前 MCP 有这些工具；节点不支持时如实报告，不假设已经部署。
+4. **先观察**：使用 `debug_case_execute` 的 `code` 或工作区内 `script_path`，调用 Scout 的 `app.hierarchy()` / `app.screenshot()`。`debug_case_status` 查询请求；`session_events` 按游标读完整证据，截图和大节点沿用原有 screenshot/artifact 接口。接单不是执行完成。
+5. **验证定位**：从真实 nodes 或 hierarchy_text 写 pages，确认唯一性、可操作性，再执行动作并验证页面变化。记录会话、请求 ID、workspace_hash、code_hash 和事件引用。同一页面状态的证据可复用；状态或相关定位版本变化后重新核验。
+6. **分段打通公共路径**：在同一会话刷新 pages、flows 并反复执行。登录、商详、模型选择、结算等当前需求需要的公共路径先实测，再扩展依赖它们的用例。普通错误只结束当前片段；`write_outcome_unknown` 后只核对证据，不重复写入、不通过 reset 绕过停止。
+7. **扩展完整用例**：把已验证路径整理为 `tests/<需求ID>/<case_id>.py` 的 `run(case)`，保留本文件的前置、操作和完整业务断言。到达页面或找到文字不能替代金额、币种、对象关联等预期。缺数据先实际核实，并在已有授权范围内尝试明确准备路径；只有说明和直接 abort 的文件属于缺口记录，不计完整实现。
+8. **结束调试并正式验证**：`debug_case_close` 请求结束，等待 Scout 确认停止与资源结算。静态检查通过后固定 Git commit，使用独立初始状态 `case_run`；本机或远端 Scout 都可正式执行。调试现场及片段通过不能拼成整例通过。
+9. **修复与定向回归**：按本次失败证据修改，重新核验受影响的定位/路径，固定新版本并创建新的正式 attempt。
 
-1. 取**需求**：`case_list` / `requirement_list(project_id)` 给需求索引，不是用例正文。按 `analyze-test-case` 读取原文、确定 `CASE_SOURCE` 来源变量、核对前置与可判定预期；已在当前任务完成这步就复用。
-2. 取仓库：`project_list` 拿 `repo_url`、`repo_branch`。
-   - 本机路径约定 `~/.mino/workspaces/<project_id>`；
-   - 不存在：`git clone --branch <repo_branch> <repo_url>`；
-   - 已存在：`git fetch` 后 `git pull --ff-only`；
-   - 有未提交改动、有未 push 提交、或 ff 失败：**停下问用户**，不 `reset --hard`，不 force。
-3. 选设备：按 `run-test-cases` 调 `device_list`，只选 `executable=true` 且平台与用例一致的一台。没有就停下，**不要按用例正文编 `locator_spec`**。写这一条期间一直用这台设备。
-4. 按 `repo-config` 补目录。缺应用就先在 `config.yaml` 加 key（不要写 `app_id`）并建 `pages/<KEY>/`。**改了应用身份字段的话，push 后要调 `repo_apps_sync`**（只传 platform 与包名/URL，不要传 `otp`；见 `repo-config` §3）。Nexus 会按 key 对齐或自动创建应用。
-5. 在 `tests/<需求ID>/<case_id>.py` 里用 Scout 把路径走通，再落成可执行脚本。同一份文件改一轮、跑一轮：
-   - 还没有真实定位时，脚本只做到达这一屏所必需的事，并调用 `app.hierarchy()` 和 `app.screenshot()`。能用已写好的 `page_key.control_id` 就 `tap` / `input`，没有定位就不点；
-   - 通过基础静态检查后，按已有授权 commit/push，用所选设备 `case_run`。只有采集的脚本可能返回 blocked/assertion_missing；这是有证据的探路，不能计为正式通过，继续补齐定位与断言；
-   - 从这次会话的 `tool/result` 取界面：`capability_id=hierarchy` 的 `nodes`。没有 `nodes` 时才读同条事件的 `hierarchy_text`，并且只抄里面真实出现的属性。截图用 `session_screenshot`；
-   - 页面可能延迟切换，先用有截止时间的 `wait_for` / 确定性断言等待目标。原文需要观察动画或时间序列时才使用 `sample`；不要为每个动作固定采样几秒或逐帧调 VLM。
-   - 用这些节点写 `pages/<APP_KEY>/<page_key>.yaml`，只写测过的 `locator_spec`。文字对得上就用文字。对不上时，截图只用来圈定区域，在该区域节点里选出匹配度最高的定位，再用下一次 `case_run` 核对。截图上的坐标不进页面文件；
-   - 把对应用例原文的 `prep` / `do` / `check` 补进脚本，只点页面里已经有定位的控件；
-   - 一步不是单个控件能完成时（登录填表、滑到底再确认、一组连续输入），写成 `flows/<name>.py`，函数接收 `app`、页面对象、`case.scout` 或普通值，不调用 `case.nexus.*`、不接整个 case、不按用例编号分派。明确业务操作、状态观察及当前 check 内的 `app.expect_*` 可复用。纯计算、不碰设备的逻辑写成 `scripts/<name>.py`。用例里 `from flows...` 或 `from scripts...` 调用。这两处也要随同一轮 `case_run` 调试，不能只留页面文件；
-   - 下一屏重复。原文走完后，脚本覆盖每一条前置、操作和预期。无法推进时记录实际缺口；缺数据由 Agent 选择明确准备路径，重复阻塞使用本地预算记录收敛，并继续独立条目。仅在缺少必要授权或会改变原文含义时向用户澄清；不换工具绕过 Scout，不停在只采集界面的版本。
-6. 在脚本仓根运行 Scout 静态检查：
+进度分别报告：需求总量、草稿、完整实现、路径验证、正式执行，以及正式通过／失败／阻塞／未执行。每项附版本与证据；文件数和 `completed` 不能替代完成用例数或通过数。
 
-```bash
-mino-scout check --require-cases .
-```
-
-   `case_isolation` 是 `mino-scout check` 的一种 finding，不是额外安装或单独运行的检查器。它和语法、导入、config、pages、原文映射、断言检查共用同一个英文输出和退出码。出现 `case_isolation` 时，把业务步骤、原文映射、断言和本条用例自己的阻塞路径直接写回当前用例文件，不要新增 wrapper 或集中 dispatcher。这个命令需要 MinoScout `0.1.150+`；`source_remote/info` 是每条 `CASE_SOURCE` 的固定信息，不阻塞静态门禁，但原文映射与覆盖仍要在 `case_run` 中核验；静态检查通过后仍需用目标设备执行 `case_run` 验证定位、账号、验证码和业务结果。
-
-   **push 门禁是强制要求**：命令出现 `error` 或 `warning` 时禁止 commit/push；先修复对应问题并重新执行 `mino-scout check --require-cases .`。`source_remote/info` 不计入待解决问题，不要为了消除它而修改用例；原文映射、定位、断言和设备行为的运行核验仍按交付要求单独完成。
-7. 写完再按 `run-test-cases` 用同一台设备 `case_run` 调试一遍。`locator_missing`、`control_unknown`、点错控件，回到上一步用这次运行的 hierarchy 改页面，不要按正文重写定位。通过后再向用户汇报。
-8. 原文与实际界面不一致时，保留原文快照，把“原文要求、实际观察、差异、证据引用”写入本地 note 并向用户说明。note 记录事实，不能代替断言或自行认定产品缺陷。能验证的后续条目继续处理；受影响条目保持未覆盖/阻塞，不通过改写原文或删除断言让任务通过。
+正式提交前在编写工作区运行 `mino-scout check --require-cases .`。error 或 warning 必须处理后重新检查；`source_remote/info` 是检查边界，不要求消除。这个正式门禁不阻止向调试会话提交观察片段。调试片段仍遵守 Scout API、设备路由、错误停止及证据要求。

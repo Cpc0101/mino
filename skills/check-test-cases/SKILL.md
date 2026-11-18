@@ -7,6 +7,10 @@ description: 用 mino-scout check 检查用例的单文件业务归属、Scout A
 
 自检只有一个入口：MinoScout 自带的 `mino-scout check`。单文件隔离规则是它的一种检查类型 `case_isolation`，不是随技能安装的独立 Python 工具，也不是第二套检查流程。
 
+## 调试与正式检查
+
+`debug_case` 在本机编写工作区执行观察片段，不要求 commit、原文完整映射或业务断言；入口检查脚本语法，运行时记录定位与动作错误。`mino-scout check` 仍检查完整用例，不能为了让草稿通过而写空断言。正式推送与 `case_run` 前执行以下门禁。
+
 ## 推送门禁（强制）
 
 任何脚本仓 push 前都必须在仓库根运行：
@@ -91,5 +95,5 @@ mino-scout check --require-cases .
 - 新用例只使用 Python + `CASE_SOURCE`，不再创建同名原文 YAML。旧 YAML 仅为已有仓库运行时兼容，不进入新脚本流程。
 - 静态检查通过只证明结构、引用和明显契约没有错误；真实定位、账号、验证码、断言和设备行为仍需 `case_run` 执行验证。`source_remote/info` 会持续存在，这是能力边界，不表示还有未解决问题。
 - 动态 helper 或动态 `source_ref` 不能因为静态不确定就强行改成另一套固定动作语言；必须用执行记录确认实际覆盖。
-- `locator_spec` 是否可用不能靠静态格式判断。定位只从本次 `case_run` 后 Scout 返回的 `nodes` 或 `hierarchy_text` 中取得；没有该次界面证据就不要写。
+- `locator_spec` 是否可用不能靠静态格式判断。定位只从本次调试会话或 `case_run` 后 Scout 返回的 `nodes` 或 `hierarchy_text` 中取得；没有该次界面证据就不要写。
 - 命令不存在说明本机没装 Scout：按 `onboarding` 门禁 3 协助安装，不要只丢文档链接。
