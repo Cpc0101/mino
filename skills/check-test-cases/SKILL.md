@@ -23,6 +23,18 @@ mino-scout check --require-cases .
 
 静态门禁不替代运行验证：动态原文映射、页面定位、断言和设备行为仍须用目标 Scout 节点完成对应 `case_run`/证据核验。静态检查通过只表示没有 error 和可操作 warning，不表示用例已真实执行通过。
 
+## 全集覆盖门禁（强制）
+
+`mino-scout check` 只检查当前工作区已经存在的脚本，不会知道飞书原文还有多少条；`case_run` 的空 `case_ids` 也只展开当前目录脚本。交付“所有用例”前还必须读取 `agent_workflow_get.coverage`，并把实际 `tests/**/<case_id>.py` 的用例 ID 与原文锁定的 `expected_units` 对账：
+
+- `coverage.missing` 必须为空；否则继续实现，不得只凭 check 通过宣布完成。`coverage.verification_missing` 非空时继续正式验证或明确报告未验证。
+- 写脚本全集写齐必须满足 `coverage.all_implemented=true`；正式全集通过必须满足 `coverage.all_verified=true`。`implementation_complete`/`verification_complete` 表示当前阶段无未处理项，仍可能包含 `blocked_units`；`complete` 只是 implementation_complete 的兼容别名，不能拿来证明脚本已全部正式通过。
+- 每个 expected ID 必须出现在对应成品文件中，或有该 ID 自己的明确 blocked/failed/deferred 证据。
+- 不得用当前文件数反推 expected_total，也不得删除原文预期、空 wrapper 或中央 dispatcher 来消除差集。
+- 最终汇报写清 `完整实现 / expected_total`、`路径验证 / expected_total`、`正式通过 / expected_total`；三者不能互相替代。
+
+静态检查、coverage 和 Scout 运行证据是三个独立门禁；任何一项没有通过都不能声称全集完成。
+
 每次修改用例、`CASE_SOURCE`、`config.yaml`、`pages/`、`flows/` 或 `scripts/` 后，在脚本仓根执行：
 
 ```bash

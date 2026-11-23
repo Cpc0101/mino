@@ -330,10 +330,64 @@ def _routing_action(policy: dict[str, Any]) -> dict[str, Any] | None:
     }
 
 
+def _check_codex_guard() -> dict[str, Any]:
+    target = os.environ.get("MINO_CODEX_HOOKS_PATH", "").strip()
+    try:
+        from install_codex_guard import default_hooks_path, inspect_guard
+    except Exception as exc:
+        return {"state": "error", "reason": str(exc), "requires_action": True}
+    hooks_path = Path(target).expanduser() if target else default_hooks_path()
+    try:
+        result = inspect_guard(hooks_path)
+    except Exception as exc:
+        return {"path": str(hooks_path), "state": "error", "reason": str(exc), "requires_action": True}
+    result["requires_action"] = result.get("state") != "current"
+    return result
+
+
+def _guard_action(codex_guard: dict[str, Any]) -> dict[str, Any] | None:
+    state = str(codex_guard.get("state") or "")
+    if state == "current":
+        return None
+    path = str(codex_guard.get("path") or "")
+    if state in {"conflict", "error"}:
+        return {
+            "id": "codex_guard",
+            "kind": "repair_codex_guard",
+            "requires_user_confirmation": True,
+            "path": path,
+            "question": f"Mino 无法确认 Codex UI guard 的状态（{state}）。是否允许我检查并修复 {path}？",
+            "impact": "修复前不会覆盖现有 hooks；guard 未生效时 Computer Use 仍可能绕过 Scout。修复后须新开会话并在 /hooks 中信任。",
+            "requires_new_session": True,
+            "next_step": "修复后新开会话，在 /hooks 中审查并信任该用户级 hook。",
+            "command": None,
+        }
+    installer = Path(__file__).resolve().with_name("install_codex_guard.py")
+    return {
+        "id": "codex_guard",
+        "kind": "install_codex_guard",
+        "requires_user_confirmation": True,
+        "path": path,
+        "question": (
+            f"Mino 检测到 Codex UI guard 尚未安装或需要刷新（{state}）。"
+            f"是否允许我写入可撤销的 PreToolUse guard 到 {path}？"
+        ),
+        "impact": (
+            "它会阻断 cua_repl、屏幕捕获和 node_repl 中的浏览器自动化，并保留其他 hooks；"
+            "它是本地 guardrail，不是完整 sandbox，不能替代管理员 requirements.toml。"
+            "变更后需新开会话，并在 /hooks 中审查并信任该用户级 hook；未信任时会跳过。"
+        ),
+        "requires_new_session": True,
+        "next_step": "新开会话，在 /hooks 中审查并信任该用户级 hook。",
+        "command": [sys.executable, str(installer), "--apply", "--path", path],
+    }
+
+
 def _build_consent_actions(
     skills: list[dict[str, Any]],
     scout: dict[str, Any],
     routing_policy: dict[str, Any],
+    codex_guard: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     """生成需要用户逐项确认的安装/更新动作，不在检查阶段执行任何写入。"""
     actions: list[dict[str, Any]] = []
@@ -434,6 +488,9 @@ def _build_consent_actions(
     routing = _routing_action(routing_policy)
     if routing:
         actions.append(routing)
+    guard = _guard_action(codex_guard or {})
+    if guard:
+        actions.append(guard)
     return actions
 
 
@@ -456,7 +513,8 @@ def main(argv: list[str] | None = None) -> int:
     skills, needs_update = _check_skills(latest, latest_error)
     scout, scout_needs_update = _check_scout(timeout)
     routing_policy = _check_routing_policy()
-    actions = _build_consent_actions(skills, scout, routing_policy)
+    codex_guard = _check_codex_guard()
+    actions = _build_consent_actions(skills, scout, routing_policy, codex_guard)
     needs_update.extend(scout_needs_update)
     unknown_checks = [f"skill:{row.get('root')}" for row in skills if row.get("state") == "unknown"]
     if scout.get("state") == "unknown":
@@ -478,7 +536,7 @@ def main(argv: list[str] | None = None) -> int:
     else:
         overall_state = "current"
     out = {
-        "schema": 3,
+        "schema": 4,
         "checked_at": int(time.time()),
         "overall_state": overall_state,
         "check_complete": not unknown_checks,
@@ -486,6 +544,7 @@ def main(argv: list[str] | None = None) -> int:
         "skills": skills,
         "scout": scout,
         "routing_policy": routing_policy,
+        "codex_guard": codex_guard,
         "update_available": bool(needs_update),
         "needs_update": needs_update,
         "consent_required": bool(actions),
@@ -496,6 +555,8 @@ def main(argv: list[str] | None = None) -> int:
             "consent_actions 非空时，Agent 必须先向用户说明影响并取得明确同意，不得静默安装或更新。"
             "Skill 更新需新开会话生效；Scout 必须使用固定 build_id/release_tag；"
             "routing_policy 不是 current 时询问用户后再用 install_routing_policy.py --apply。"
+            "codex_guard 不是 current 时询问用户后再用 install_codex_guard.py --apply；"
+            "guard 是本地 guardrail，不是管理员级强制禁用。"
         ),
     }
     print(json.dumps(out, ensure_ascii=False, indent=2))

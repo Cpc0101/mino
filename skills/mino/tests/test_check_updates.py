@@ -15,6 +15,7 @@ SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
 import check_updates
+import install_codex_guard
 
 
 class CheckUpdatesTests(unittest.TestCase):
@@ -78,8 +79,9 @@ class CheckUpdatesTests(unittest.TestCase):
             "method": "mino-scout update-check",
         }
         routing = {"state": "outdated", "path": str(self.base / "AGENTS.md")}
+        guard = {"state": "current", "path": str(self.base / "hooks.json")}
         with mock.patch.object(check_updates.shutil, "which", return_value="/tmp/mino-scout"):
-            actions = check_updates._build_consent_actions(skills, scout, routing)
+            actions = check_updates._build_consent_actions(skills, scout, routing, guard)
 
         by_id = {action["id"]: action for action in actions}
         self.assertEqual(set(by_id), {f"skill:{self.base / 'skills'}", "scout", "routing_policy"})
@@ -98,6 +100,7 @@ class CheckUpdatesTests(unittest.TestCase):
             [],
             {"state": "not_installed", "reason": "PATH 中没有 mino-scout"},
             {"state": "current", "path": str(self.base / "AGENTS.md")},
+            {"state": "current", "path": str(self.base / "hooks.json")},
         )
 
         self.assertEqual(len(actions), 1)
@@ -112,11 +115,13 @@ class CheckUpdatesTests(unittest.TestCase):
         version_file = skills_root / "VERSION"
         version_file.write_text("0.1.18\n", encoding="utf-8")
         agents = self.base / "AGENTS.md"
+        hooks = self.base / "hooks.json"
         scout = {"state": "current", "current": "0.1.152", "latest": "0.1.152"}
         env = {
             "MINO_SKILL_LATEST_VERSION": "0.1.19",
             "MINO_SKILL_ROOTS": str(skills_root),
             "MINO_ROUTING_POLICY_PATH": str(agents),
+            "MINO_CODEX_HOOKS_PATH": str(hooks),
         }
         stdout = io.StringIO()
         with mock.patch.dict(os.environ, env, clear=True):
@@ -128,18 +133,23 @@ class CheckUpdatesTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(version_file.read_text(encoding="utf-8"), "0.1.18\n")
         self.assertFalse(agents.exists())
+        self.assertFalse(hooks.exists())
         self.assertTrue(output["consent_required"])
         self.assertEqual(output["skill_latest_source"], "override")
         self.assertEqual(output["routing_policy"]["state"], "missing")
+        self.assertEqual(output["codex_guard"]["state"], "missing")
 
     def test_only_routing_change_reports_action_required(self) -> None:
         skills_root = self.base / "skills"
         skills_root.mkdir()
         (skills_root / "VERSION").write_text("0.1.19\n", encoding="utf-8")
+        hooks = self.base / "hooks.json"
+        install_codex_guard._apply(hooks)
         env = {
             "MINO_SKILL_LATEST_VERSION": "0.1.19",
             "MINO_SKILL_ROOTS": str(skills_root),
             "MINO_ROUTING_POLICY_PATH": str(self.base / "AGENTS.md"),
+            "MINO_CODEX_HOOKS_PATH": str(hooks),
         }
         scout = {"state": "current", "current": "0.1.152", "latest": "0.1.152"}
         stdout = io.StringIO()
@@ -151,6 +161,23 @@ class CheckUpdatesTests(unittest.TestCase):
         output = json.loads(stdout.getvalue())
         self.assertEqual(output["overall_state"], "action_required")
         self.assertEqual([item["id"] for item in output["consent_actions"]], ["routing_policy"])
+
+    def test_missing_guard_creates_revocable_consent_action(self) -> None:
+        actions = check_updates._build_consent_actions(
+            [],
+            {"state": "current", "current": "0.1.164", "latest": "0.1.164"},
+            {"state": "current", "path": str(self.base / "AGENTS.md")},
+            {"state": "missing", "path": str(self.base / "hooks.json")},
+        )
+
+        self.assertEqual([action["id"] for action in actions], ["codex_guard"])
+        action = actions[0]
+        self.assertEqual(action["kind"], "install_codex_guard")
+        self.assertTrue(action["requires_user_confirmation"])
+        self.assertIn("install_codex_guard.py", action["command"][1])
+        self.assertIn("不是完整 sandbox", action["impact"])
+        self.assertIn("/hooks", action["impact"])
+        self.assertIn("/hooks", action["next_step"])
 
 
 if __name__ == "__main__":

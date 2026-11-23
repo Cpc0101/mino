@@ -8,6 +8,8 @@ Treat a request as a Mino task when it names Mino, Mino Scout, Mino Nexus, or Mi
 Within a Mino task:
 
 - For Mino/Nexus control-plane operations, use the Mino MCP server only. Do not substitute a generic browser, database, shell, or another MCP server for equivalent Mino operations.
+- When a Feishu document or spreadsheet contains the source cases, read it through Mino MCP `cli_query(plugin="feishu")`: use `wiki +node-get`, then `sheets +sheet-list`, then `sheets +cells-get`. Do not use Computer Use, browser screenshots, or copied visible fragments as a substitute for Feishu CLI content. If the CLI is unavailable or returns an incomplete range, report the concrete failure instead of guessing.
+- For “write all cases”, “run all cases”, “continue testing”, or equivalent requests, first machine-read the original source and lock the complete case-ID list as `agent_workflow_init.expected_units`. Process it in batches from `coverage.next_units`; never infer the source total from current `tests/` files, `case_list`, or `case_run.script_targets[].case_ids=[]`. Only `coverage.all_implemented=true` proves all scripts are written, and only `coverage.all_verified=true` proves the whole set formally passed.
 - For local Scout lifecycle, status, probe, and repository checks, use the `mino-scout` CLI. Do not infer local Scout state from another process or service.
 - On the first Mino task in each new session, read the installed `mino` skill and run its read-only `scripts/check_updates.py` before substantive work. If a check is `unknown`, report it as unknown, not as up to date.
 - Never install or update the Mino skill, Mino Scout, or this routing block without explicit user confirmation. Explain the impact first, then wait.

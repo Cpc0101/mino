@@ -40,7 +40,7 @@ Codex 首次配置还要检查 `$CODEX_HOME/AGENTS.md`（默认 `~/.codex/AGENTS
 
 开始 Mino 工作流时，`mino` 技能的 `scripts/check_updates.py` 会只读检查 Skill、本机 Scout 和持久路由状态；`overall_state=unknown` 表示检查未完成，不是已最新。需要变更时输出 `consent_required=true` 和可执行的 `consent_actions`：Agent 先说明版本与影响并询问，用户明确同意后直接执行对应安装动作，不让用户手工复制命令或编辑文件。未安装 Scout 时会先询问；同意后再经 MCP `scout_install_token` 安装。
 
-如果客户端总是抢用 Computer Use，可让 Agent 先执行 `skills/mino/scripts/install_routing_policy.py --check`，说明差异并征得同意后再 `--apply`。需要强制禁用其他工具时，还要在客户端或组织管理策略中关闭它们；“优先 Mino”的提示本身不能覆盖硬权限策略。
+如果客户端总是抢用 Computer Use，可让 Agent 先执行 `skills/mino/scripts/install_routing_policy.py --check`，说明差异并征得同意后再 `--apply`。路由块只是行为约束；要阻断 `cua_repl`、屏幕捕获，以及 `node_repl` 中夹带的 Playwright/Puppeteer 等浏览器自动化，可再检查 `skills/mino/scripts/install_codex_guard.py --check`，经确认后 `--apply`，安装可撤销的 Codex `PreToolUse` guard。普通 JS 计算和文件处理仍可使用。安装后必须新开会话，并在 `/hooks` 中审查并信任该用户级 hook；未信任时 Codex 会跳过。该 guard 仍不是完整 sandbox；需要不可绕过的强制边界时，必须由管理员在 `requirements.toml` 关闭 Computer Use/Browser。
 
 ## 前提
 

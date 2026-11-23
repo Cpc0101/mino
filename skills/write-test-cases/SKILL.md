@@ -11,6 +11,8 @@ description: 将已有人工用例实现为可复用的 MinoScout Python 脚本�
 
 多轮编写按 [Agent 进度与预算](../mino/references/workflow-ledger.md) 记录本轮目标、证据及尝试结果；相同阻塞无新事实时改变有依据的方案或交付阶段，并继续独立用例。源码交付与实际验证分别记录，用户指定发布后测试时先完成本地开发及静态检查。
 
+**全集交付门禁：**开始编写前必须已有从原文读取的 `expected_case_ids`，并把同一清单作为 `agent_workflow_init.expected_units`。每批实现 5–10 条，批次结束后从 `agent_workflow_get.coverage.next_units` 自动取下一批，直到 `all_implemented=true`，或剩余条目分别有明确 blocked/failed/deferred 结论并列入 `blocked_units`。`implementation_complete=true` 只表示当前实现阶段已无未处理项，仍可能有终态阻塞；`complete` 只是它的兼容别名。写成脚本不等于正式测试通过，后续验收必须另看 `verification_missing` 和最终 `all_verified`。不得只写几条后把“当前文件”“需求现有用例”或当前可执行子集说成全部；每轮汇报必须写 `已实现/expected_total` 与剩余 ID。
+
 方法签名以本机安装的运行时为准，不确定时读源码，不要凭记忆：
 
 ```bash
@@ -194,6 +196,6 @@ def run(case):
 8. **结束调试并正式验证**：`debug_case_close` 请求结束，等待 Scout 确认停止与资源结算。静态检查通过后固定 Git commit，使用独立初始状态 `case_run`；本机或远端 Scout 都可正式执行。调试现场及片段通过不能拼成整例通过。
 9. **修复与定向回归**：按本次失败证据修改，重新核验受影响的定位/路径，固定新版本并创建新的正式 attempt。
 
-进度分别报告：需求总量、草稿、完整实现、路径验证、正式执行，以及正式通过／失败／阻塞／未执行。每项附版本与证据；文件数和 `completed` 不能替代完成用例数或通过数。
+进度分别报告：`expected_total`、已声明、草稿、完整实现、路径验证、正式执行，以及正式通过／失败／阻塞／未执行。每项附版本与证据；文件数和 `completed` 不能替代完成用例数或通过数。每批结束都读取 `agent_workflow_get.coverage`，不能凭记忆判断是否还有用例。
 
 正式提交前在编写工作区运行 `mino-scout check --require-cases .`。error 或 warning 必须处理后重新检查；`source_remote/info` 是检查边界，不要求消除。这个正式门禁不阻止向调试会话提交观察片段。调试片段仍遵守 Scout API、设备路由、错误停止及证据要求。

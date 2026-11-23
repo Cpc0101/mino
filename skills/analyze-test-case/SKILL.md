@@ -11,6 +11,35 @@ description: 把已有人工用例整理为可自动化的前置、操作、预�
 
 `requirement_list` / `case_list` 给的是需求索引与原文入口，不等于已拿到全部用例。打开 source_url 或读取用户提供的文件，确认本次用例正文与范围。保留原文内容及出处，不根据当前界面补写新预期。
 
+## 全集清单门禁（写第一条脚本前）
+
+用户说“所有用例”“全部用例”“继续把所有用例写完”时，范围是需求正文里的全部明细，不是当前 `tests/` 里已有的文件，也不是当前设备能立即跑通的子集。必须先从原文机器读取并锁定完整清单，再分析和编写。
+
+飞书正文必须通过 MCP `cli_query` 的 `feishu` CLI 读取，不得用 Computer Use、浏览器截图或手工抄页面代替：
+
+1. `wiki +node-get` 从文档/表格 URL 取得 Wiki node 与真实对象 token；
+2. `sheets +sheet-list` 取得工作表、行范围和当前 revision；
+3. `sheets +cells-get` 读取完整单元格区域，按原文稳定用例 ID 去重生成 `expected_case_ids`。
+
+具体 options 以当前飞书 CLI `help` 为准；凭据、token 和完整正文不写入回复或仓库。非飞书来源同样要读取完整原文，并记录文件版本或内容哈希。
+
+写脚本前必须先形成并保存这份清单：
+
+```text
+source_url
+spreadsheet_token / sheet_id / range / revision（或本地文件哈希）
+expected_case_ids（完整、唯一）
+expected_total
+当前 implemented / path_validated / formal_verified / blocked / missing
+missing / verification_missing / blocked_units / next_units
+implementation_complete / verification_complete
+all_implemented / all_verified（complete 只是 implementation_complete 的兼容别名）
+```
+
+同时通过 Nexus MCP 初始化工作记录，`expected_units` 必须是刚读取的完整 ID 清单，`units` 只能是它的子集且省略时默认全集，`source` 必填并固定来源与版本。不得只传当前打算先写的几条；其余条目必须作为 pending 被看见。原文有重复 ID、空 ID、读取截断或范围未确认时先阻塞，不能猜全集。
+
+当前脚本文件集合只能与 `expected_case_ids` 做差集，绝不能反过来当作用例全集。差集非空时继续按批次实现；任何“需求现有 N 条”“全部完成”的表述都必须满足 `N == expected_total` 或明确列出 `blocked` 与剩余 ID。
+
 逐条检查：
 
 - **前置**：环境、应用版本、账号身份、业务状态、权限、数据。哪些已知，哪些需要在设备上验证，哪些目前无法建立。

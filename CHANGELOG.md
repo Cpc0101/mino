@@ -2,6 +2,16 @@
 
 每个版本写清需要的 Scout / Nexus 版本。技能说的和实际对不上时，先核对这里。
 
+## 0.1.22
+
+- “写所有用例”“继续测试”“跑全部用例”增加全集门禁：先从飞书 CLI 或其他原文机器读取完整用例 ID，再把同一清单作为 `agent_workflow_init.expected_units` 锁定；禁止用当前 `tests/` 文件反推全集，禁止用 Computer Use 或浏览器截图代替飞书 CLI 正文读取。`case_run.script_targets[].case_ids=[]` 只表示当前需求目录脚本全集，不表示原文用例全集。
+- Nexus `agent.workflow.init` 现在要求 `source`；`units` 必须是 `expected_units` 的子集，省略时默认声明全集。默认总预算至少为 `expected_units × 4`，42 条用例即至少 168 轮，既有工作流迁移时自动扩展到完整范围的最低预算。
+- `agent_workflow_get/start/finish` 返回机器可读的 `coverage`，含 `missing`、`verification_missing`、`blocked_units`、`next_units`、`implemented`、`path_validated`、`formal_verified`、`implementation_complete`、`verification_complete`、`all_implemented` 和 `all_verified`。`implementation_complete`/`verification_complete` 表示当前阶段已无未处理项但仍可能含终态阻塞；只有 `all_implemented=true` 才能说脚本全集写齐，只有 `all_verified=true` 才能说正式全集通过。`complete` 保留为 `implementation_complete` 的兼容别名。每批 5–10 条后从 `coverage.next_units` 自动续跑；只有当前交付阶段完成、剩余条目均有明确阻塞/失败/延期结论、需要用户输入、Scout 不可用或预算耗尽才能停。
+- `mino-scout check` 只证明现有脚本静态合格，不证明全集覆盖；交付前必须同时核对 `coverage.missing`、静态检查和 Scout 正式证据。
+- 新增可撤销的 Codex `PreToolUse` guard：阻断 `cua_repl`、屏幕捕获，以及 `node_repl` 中夹带的 Playwright/Puppeteer/Selenium 等浏览器自动化；普通 JS 计算和文件处理保留。预检把 guard 状态列入 `codex_guard`，未安装/过期时只生成确认动作；不会静默写入用户目录。安装后需新开会话并在 `/hooks` 中审查、信任用户级 hook，否则 Codex 会跳过。guard 是本地 guardrail，不撤销插件暴露，也不等同于管理员级 `requirements.toml` 强制禁用。
+
+需要 MinoNexus `0.1.117`。本版不要求重新打包 MinoScout 或 MinoWorkbench；技能及路由更新后需新开会话加载。
+
 ## 0.1.21
 
 - 本机编写通过保留现场的 debug_case 分段观察、验证定位和刷新 pages/flows；远端 Scout 仅执行正式用例。

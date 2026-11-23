@@ -14,6 +14,7 @@ description: Mino 工作流统一入口。用户提到 Mino、Mino Scout/MCP、�
 | 工作 | 唯一默认路径 |
 |---|---|
 | Nexus 项目、应用、需求、账号、设备、任务、记录 | **Mino MCP** |
+| 飞书需求正文、用例表格与节点信息 | **Mino MCP `cli_query` 的 `feishu` CLI** |
 | 本机 Scout 状态、探测、静态检查 | **`mino-scout` CLI** |
 | 本机编写、观察与调试 | **Mino MCP `debug_case` → `debug_case_execute`** → 本机 Scout 保留现场 |
 | 正式执行 Android / iOS / Web / 桌面用例 | 固定脚本版本 → **Mino MCP `case_run`** → 本机或远端 Scout |
@@ -36,7 +37,7 @@ description: Mino 工作流统一入口。用户提到 Mino、Mino Scout/MCP、�
 python3 "<mino-skill-dir>/scripts/check_updates.py" --json
 ```
 
-`<mino-skill-dir>` 是已安装的 `mino` 技能目录。预检会比较本地 Skill 的 `VERSION` 与本机 `mino-scout update-check`，并报告 `routing_policy`。读取顶层 `overall_state`；网络不可用时它是 `unknown` 且 `check_complete=false`，不把它说成“已是最新”，也不要因此编造版本。同一会话只做一次，避免每个业务请求重复联网。
+`<mino-skill-dir>` 是已安装的 `mino` 技能目录。预检会比较本地 Skill 的 `VERSION` 与本机 `mino-scout update-check`，并报告 `routing_policy` 与 `codex_guard`。读取顶层 `overall_state`；网络不可用时它是 `unknown` 且 `check_complete=false`，不把它说成“已是最新”，也不要因此编造版本。同一会话只做一次，避免每个业务请求重复联网。
 
 2. **需要安装或更新时，先询问，再由 Agent 执行**：
    - `consent_required=true` 时，逐项读取 `consent_actions`，使用其中的 `question` 询问用户并说明 `impact`。不要要求用户手工复制命令、运行脚本或编辑 `AGENTS.md`；这是本机持久状态变更，必须由 Agent 在用户明确同意后执行。
@@ -54,8 +55,10 @@ python3 "<mino-skill-dir>/scripts/install_routing_policy.py" --check
 
 `state` 不是 `current` 时，向用户说明：Skill 与 MCP `initialize.instructions` 是软引导，平台仍可能优先选择 Computer Use；写入 `$CODEX_HOME/AGENTS.md`（未设置时为 `~/.codex/AGENTS.md`）的托管块才会成为跨会话持久规则。**取得用户确认后**再执行 `--apply`，由 Agent 完成写入，不得静默修改用户主目录，也不要让用户自己复制路径或命令。目标客户端若使用其他 `AGENTS.md` 路径，显式传 `--path`；遇到 `conflict` 就停下，不覆盖原文件。规则变更后通常需要新开会话才生效。
 
-4. **调用 MCP `agent_guide`**，读取当前路由契约和工具列表；不要凭记忆猜工具。若 MCP 尚未配置，先转 `onboarding` 门禁完成接入，接入后再调用；不要因此改用其他工具。
-5. 预检结果为 `current`、`unknown` 或本机未安装时，按实际结果继续判断当前任务需要 MCP、CLI 还是首次安装；`unknown` 必须如实说明。
+4. **检查 Codex UI guard**（预检输出中的 `codex_guard`）：本机若仍暴露 `cua_repl`、屏幕捕获或可执行浏览器自动化的 `node_repl`，必须把“提示优先 Mino”与“工具已被阻断”分开陈述。`state` 不是 `current` 时，说明它会阻断 Computer Use、屏幕捕获和 `node_repl` 中的 Playwright/Puppeteer 等浏览器自动化，同时保留普通 JS 与其他 hooks；取得用户确认后执行 `install_codex_guard.py --apply`。它是可撤销的 `PreToolUse` guardrail，不是完整 sandbox，也不能替代管理员 `requirements.toml`；hook 失败或特殊/hosted tool 路径仍可能绕过。变更后需新开 Codex 会话，并在 `/hooks` 中审查、信任该用户级 hook；未信任时 Codex 会跳过。
+
+5. **调用 MCP `agent_guide`**，读取当前路由契约和工具列表；不要凭记忆猜工具。若 MCP 尚未配置，先转 `onboarding` 门禁完成接入，接入后再调用；不要因此改用其他工具。
+6. 预检结果为 `current`、`unknown` 或本机未安装时，按实际结果继续判断当前任务需要 MCP、CLI 还是首次安装；`unknown` 必须如实说明。
 
 > `0.1.15` 及更早版本还没有这个统一入口，无法由本技能自动完成首次预检。先按 `update-skills` 引导安装一次 `0.1.16+`，安装同样由 Agent 在用户确认后执行，不要求用户复制命令；再新开会话，之后才由启动门禁自动检查。
 
@@ -76,6 +79,7 @@ python3 "<mino-skill-dir>/scripts/install_routing_policy.py" --check
 
 ## 执行纪律
 
+- 用户要求“写所有用例”“继续测试”或“跑全部用例”时，必须先用 Mino MCP `cli_query` 的 `feishu` CLI（或其他原文来源 CLI）机器读取完整 ID 清单，再以 `expected_units` 初始化 Nexus workflow；禁止用 Computer Use、浏览器截图或手工抄页面代替正文读取。每批从 `coverage.next_units` 继续；只有 `all_implemented=true` 才能说脚本全集写齐，只有 `all_verified=true` 才能说正式全集通过。`implementation_complete`/`verification_complete` 仍可能包含 blocked_units，`complete` 只是前者的兼容别名。当前文件数不是全集，`case_ids=[]` 也只代表当前目录脚本，不得只跑/写几条就报告全部完成。
 - MCP 工具名把点写成下划线，例如 `agent.guide` 是 `agent_guide`。
 - 先查项目、应用、设备和渠道，再 `case_run`；参数缺失就问，不要猜。
 - 编写工作区由本机 Agent 编辑；`debug_case` 直接绑定该目录，不拉仓、不要求 commit。正式 `case_run` 从固定 Git 版本进入独立执行工作区，按 task_id / attempt 保存源码与运行数据。Nexus MCP 不编辑工作区文件。
@@ -85,4 +89,4 @@ python3 "<mino-skill-dir>/scripts/install_routing_policy.py" --check
 
 ## 为什么还需要 AGENTS.md
 
-技能触发和 MCP 返回的 instructions 都依赖客户端选择，不能保证压过平台内置的 Computer Use、Browser 或其他 MCP。`AGENTS.md` 是 Codex 的持久行为约束，适合写“测试任务必须经 Mino MCP/Scout”这类每次都要遵守的路由规则。它仍不能覆盖用户或管理策略的显式禁止；若组织要求绝对关闭其他工具，还需在客户端或管理策略中禁用对应工具。
+技能触发和 MCP 返回的 instructions 都依赖客户端选择，不能保证压过平台内置的 Computer Use、Browser 或其他 MCP。`AGENTS.md` 是 Codex 的持久行为约束，适合写“测试任务必须经 Mino MCP/Scout”这类每次都要遵守的路由规则。要阻止已知本地 UI 工具调用，可安装本技能的 Codex `PreToolUse` guard；要真正撤销工具暴露并形成不可由用户绕过的边界，仍必须由客户端管理员策略（如 `requirements.toml`）关闭 Computer Use/Browser。不要把三者混为同一等级的强制力。

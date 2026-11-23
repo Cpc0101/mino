@@ -13,6 +13,19 @@ description: 通过 Nexus 运行已写好的用例，读取执行 Scout 的记�
 
 开跑前用一两句话告诉用户：将跑哪些用例、哪台设备、哪个环境。
 
+## 全集范围门禁（开跑前）
+
+用户说“继续测试”“跑所有用例”或“验收这个需求”时，执行范围仍是需求原文的全部用例，不是当前 `tests/` 目录里已经有的脚本。开跑前必须先从飞书 CLI 或其他原文来源机器读取完整用例 ID，并读取或初始化对应 workflow 的 `expected_units` 与 `coverage`；不得用 `case_list`、当前目录文件数或设备能跑通的子集反推需求全集。
+
+`case_run` 的 `script_targets[].case_ids=[]` 只表示执行 `tests/<需求ID>/` 下当前已有的全部脚本，不表示原文 `expected_units` 已全部实现。执行前要把这批脚本的 ID 与 `coverage.missing` / `coverage.verification_missing` 对账：
+
+- `missing` 非空时，不能把“现有脚本全部通过”写成“需求全部通过”或“需求现有用例全部通过”；必须写成“当前已实现 X/Y，剩余 ID ...”。
+- 用户要求的是全集时，按 write-test-cases 的全集门禁继续实现缺失脚本，再分批执行；不能停在已存在的几条上。
+- 如果用户明确只要求回归当前已有脚本，应在开跑前说明这是当前脚本子集，不能暗示原文全集已完成。
+- 每条用例执行后读取真实 Scout 结果；只有有 `task_id` 和断言证据的 verification 才能计为 `formal_verified`，接单、动作完成或静态检查通过都不算。
+
+每批完成 5–10 条后重新读取 `agent_workflow_get.coverage`，从 `next_units` 自动继续。`verification_complete=true` 只表示当前验证阶段没有未处理项，仍可能含 `blocked_units`；正式全集通过必须满足 `all_verified=true`。否则只有所有剩余条目都有明确 blocked/failed/deferred 证据时才可结束本轮，并逐条报告缺口。`coverage.complete` 只是脚本实现阶段的兼容别名，不能证明正式测试已完成。
+
 ## 1. 执行
 
 0. **确认执行节点**：先区分当前机与所选设备所属 Scout。本机 Scout 用 `mino-scout status` / `probe` 核验；远端节点以 Nexus 返回的节点/设备事实为准，不用当前机 CLI 状态推断远端。新记录流程需要执行 Scout 支持 `record_api_version=1`，缺能力时按节点升级流程处理。
@@ -37,7 +50,7 @@ description: 通过 Nexus 运行已写好的用例，读取执行 Scout 的记�
    | Android 需要键盘输入 | ADB Keyboard | `node_channel_program(node_id, tool_id=adb.keyboard, action=install)` |
 
    `operation_id` 自定并记住；装完再用 `plugin_status` 确认。没装完不要 `case_run`。不要安装未列出的插件。
-4. `case_run` 传 `script_targets`。`case_list` / `requirement_list` 只返回需求元数据与链接；脚本在 `tests/<需求ID>/<用例ID>.py`。
+4. `case_run` 传 `script_targets`。`case_list` / `requirement_list` 只返回需求元数据与链接；脚本在 `tests/<需求ID>/<用例ID>.py`。`case_ids=[]` 只代表该目录下现有脚本全集，执行“所有用例”前必须先按上面的 coverage 门禁确认没有原文缺项。
 
    ```text
    case_run(
