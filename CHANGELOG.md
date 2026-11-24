@@ -9,7 +9,7 @@
 - 每条用例结束即时输出可见回执，去重关联 task/session/attempt/revision；未确认客户端展示时不得宣称已送达。
 - 工作流范围以服务端成功的 case_source_read 回执为准，正式验证完成须核对同项目、同身份的真实任务证据。
 
-需要 MinoNexus `0.1.119`，沿用 MinoScout `0.1.167`；本版不发布 Scout 或 Workbench。技能更新后需新开会话加载。
+需要 MinoNexus `0.1.120`，沿用 MinoScout `0.1.167`；本版不发布 Scout 或 Workbench。技能更新后需新开会话加载。
 
 ## 0.1.22
 
