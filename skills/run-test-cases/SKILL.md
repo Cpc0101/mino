@@ -5,6 +5,8 @@ description: 通过 Nexus 运行已写好的用例，读取执行 Scout 的记�
 
 # 执行用例并汇报
 
+测试任务先读[测试质量、缺口求助与逐条回执](../mino/references/execution-discipline.md)：缺口立即查证或问人，不编账号、不改原文预期；正式终态逐条在可见对话回执，调试/准备不计正式通过。
+
 **触发与读结果用 MCP；本机 Scout 运维用 CLI。** Nexus 管任务索引、设备/账号租约和状态投影；Scout 拉仓、独立执行并保存完整记录。Workbench 从 Nexus 取列表，经 Nexus 转发读取原执行 Scout 的详情。正式执行的 Git 副本、输出和证据保存在执行工作区的 task_id 目录下，不删除为临时副本；各 attempt 的 source/output 独立。旧记录继续可读。
 
 本技能负责固定版本的正式执行。本机编写与保留现场的调试使用 write-test-cases 的 `debug_case` 流程。远端 Scout 只执行正式用例；执行输出目录以 `session_record` 返回的路径为准，不在编写工作区堆放运行数据。

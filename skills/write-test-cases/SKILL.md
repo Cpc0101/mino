@@ -5,13 +5,15 @@ description: 将已有人工用例实现为可复用的 MinoScout Python 脚本�
 
 # 编写用例脚本（Scout）
 
+测试任务先读[测试质量、缺口求助与逐条回执](../mino/references/execution-discipline.md)：缺口立即查证或问人，不编账号、不改原文预期；正式终态逐条在可见对话回执，调试/准备不计正式通过。
+
 脚本是 Python，一条用例一个文件，在所选设备所属 Scout 的独立进程执行。先按 [analyze-test-case](../analyze-test-case/SKILL.md) 确定原文位置并在 Python 声明 `CASE_SOURCE` 来源变量；仓库与页面配置见 `repo-config`。完整记录保存在执行 Scout，以 Nexus task_id 归档；Nexus 保存任务索引，Workbench 经 Nexus 读取 Scout 详情。
 
 **UI 工具边界：**被测 Android / iOS / Web / 桌面界面的观察、截图、控件树、定位、点击和输入只能来自 Scout Case API，本机编写通过 MCP `debug_case` / `debug_case_execute` 执行，正式用例通过 `case_run` 执行。不得先用 Computer Use、浏览器控制、Playwright、adb、Appium、WDA 或其他桌面自动化工具探路或抄 DOM。
 
 多轮编写按 [Agent 进度与预算](../mino/references/workflow-ledger.md) 记录本轮目标、证据及尝试结果；相同阻塞无新事实时改变有依据的方案或交付阶段，并继续独立用例。源码交付与实际验证分别记录，用户指定发布后测试时先完成本地开发及静态检查。
 
-**全集交付门禁：**开始编写前必须已有从原文读取的 `expected_case_ids`，并把同一清单作为 `agent_workflow_init.expected_units`。每批实现 5–10 条，批次结束后从 `agent_workflow_get.coverage.next_units` 自动取下一批，直到 `all_implemented=true`，或剩余条目分别有明确 blocked/failed/deferred 结论并列入 `blocked_units`。`implementation_complete=true` 只表示当前实现阶段已无未处理项，仍可能有终态阻塞；`complete` 只是它的兼容别名。写成脚本不等于正式测试通过，后续验收必须另看 `verification_missing` 和最终 `all_verified`。不得只写几条后把“当前文件”“需求现有用例”或当前可执行子集说成全部；每轮汇报必须写 `已实现/expected_total` 与剩余 ID。
+**全集交付门禁：**开始编写前必须已有从原文读取的 `expected_case_ids`，并用成功 `case_source_read.read_id` 初始化 `agent_workflow_init.source_read_id`，核对服务端返回的 `expected_units` 与同一清单一致。每批实现 5–10 条，批次结束后从 `agent_workflow_get.coverage.next_units` 自动取下一批，直到 `all_implemented=true`，或剩余条目分别有明确 blocked/failed/deferred 结论并列入 `blocked_units`。`implementation_complete=true` 只表示当前实现阶段已无未处理项，仍可能有终态阻塞；`complete` 只是它的兼容别名。写成脚本不等于正式测试通过，后续验收必须另看 `verification_missing` 和最终 `all_verified`。不得只写几条后把“当前文件”“需求现有用例”或当前可执行子集说成全部；每轮汇报必须写 `已实现/expected_total` 与剩余 ID。
 
 方法签名以本机安装的运行时为准，不确定时读源码，不要凭记忆：
 

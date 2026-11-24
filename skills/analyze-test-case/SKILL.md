@@ -5,6 +5,8 @@ description: 把已有人工用例整理为可自动化的前置、操作、预�
 
 # 分析已有用例
 
+测试任务先读[测试质量、缺口求助与逐条回执](../mino/references/execution-discipline.md)：缺口立即查证或问人，不编账号、不改原文预期；正式终态逐条在可见对话回执，调试/准备不计正式通过。
+
 近期目标是把用户已有的人工用例转成可执行、可复用的 Python 脚本。先固定“要验证什么”，再用真实设备确定“如何操作”。脚本仍可自由使用 Python、flows 和 scripts；原文快照只描述人工用例，不另造动作语言。
 
 ## 原文与实现的边界
@@ -36,7 +38,7 @@ implementation_complete / verification_complete
 all_implemented / all_verified（complete 只是 implementation_complete 的兼容别名）
 ```
 
-同时通过 Nexus MCP 初始化工作记录，`expected_units` 必须是刚读取的完整 ID 清单，`units` 只能是它的子集且省略时默认全集，`source` 必填并固定来源与版本。不得只传当前打算先写的几条；其余条目必须作为 pending 被看见。原文有重复 ID、空 ID、读取截断或范围未确认时先阻塞，不能猜全集。
+同时通过 `case_source_list → case_source_read` 取得成功 `read_id`，以 `source_read_id` 初始化 Nexus 工作记录；服务端从成功收据锁定完整 `expected_units` 和来源。`units` 只能是该全集子集，省略时默认全集。不得只传当前打算先写的几条；其余条目必须作为 pending 被看见。原文有重复 ID、空 ID、读取截断或范围未确认时先阻塞，不能猜全集。
 
 当前脚本文件集合只能与 `expected_case_ids` 做差集，绝不能反过来当作用例全集。差集非空时继续按批次实现；任何“需求现有 N 条”“全部完成”的表述都必须满足 `N == expected_total` 或明确列出 `blocked` 与剩余 ID。
 
