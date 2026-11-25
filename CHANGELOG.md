@@ -8,10 +8,11 @@
 - 交互与上下文：每批读取 `help_requests.answer` 与 `contexts`，人工答案只作调查依据，不是原文变更或通过证据。
 - 报告：`agent_workflow_report(final=true)` 封存交付快照；成功、失败、阻塞、取消、预算耗尽都要先结束活跃调查再交付，`delivered_with_gaps` 不等于通过。
 - Agent 运行看板：多步任务先 `agent_task_start` 登记，后续 Mino 工具带 `agent_task_id`；本地不可见动作显式 `agent_task_event`，缺数据用 `agent_task_question`，心跳不冒充进展；60 秒无心跳显示 unknown。
+- 终态门禁：关联工作流的外部 Agent 任务必须先封存最终报告才能结束；补充证据会生成新回执 ID，续接仅确认原问题，不吞掉新问题。
 - 可见交付完整性：多步任务先 `agent_task_start`，立即把 `startup_message` 与 `board_url` 发到可见对话；回执完整输出 `case_receipts[].text`；结束时交付六章报告、报告 ID 与看板链接。
 - 告警、暂停与批次准入：群聊系统告警是环境观测，不归因、不解释根因；用户暂停某需求后不再执行该需求；批量执行前先给可执行/阻塞清单和耗时预估。
 
-需要 MinoNexus `0.1.129`、MinoScout `0.1.169`；技能更新后需新开会话加载。
+需要 MinoNexus `0.1.132`、MinoScout `0.1.169`；技能更新后需新开会话加载。
 
 ## 0.1.24
 
