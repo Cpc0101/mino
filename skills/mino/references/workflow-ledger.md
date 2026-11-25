@@ -54,3 +54,25 @@ finish可在blocked/deferred时保存help_request：question、missing、checked
 verification complete必须有原task_id；新版Nexus会核验该用例所有匹配设备执行的封存Scout记录、有效原文断言、覆盖与上下文，而不是信任Agent自报complete。路径验证归preparation，调试与补数据不算正式通过。
 
 完整判定与回执纪律见[测试质量、缺口求助与逐条回执](execution-discipline.md)。
+
+
+## 来源补写、交互与报告
+
+部署支持新工具时，来源确实为空先 agent_workflow_bootstrap(project_id, scope) 登记目标，用 agent_workflow_draft 更新当前动作与原文未明确的问题（锁定前 affected_units=[]）。读取需求并补写人工用例，记录需求映射与歧义，通过已配置文档工具发布、回读核对后，在同一 workflow_id 调用 init 锁定来源；读取失败不是空表，不虚构 ID。bootstrap 不允许 start 或正式执行。
+
+每批 get 读取 help_requests.answer 与 contexts。配置、环境、数据、硬编码、产品与人工沟通分别用 agent_workflow_context 记录来源和影响；人工答案是新增调查依据，不是原文变更或通过证据。答案仍需查证，独立用例继续；相同问题不重复询问。
+
+finish 自动保存阶段报告；所有终止路径（成功、失败、阻塞、取消、预算耗尽）先核对并结束活跃调查，再 agent_workflow_report(final=true)，在可见对话交付报告引用与缺口。final 是当前范围交付，不是全集通过。固定章节：结论摘要、测试基线、覆盖与结果、问题与证据、人工确认与上下文、剩余工作。按同次 Scout 上下文取数，未知不是零。
+
+
+## Agent 运行看板（独立于测试工作流）
+
+支持 agent_task_* 时，多步任务先 agent_task_start 登记稳定 task_id，后续所有 Mino 工具传 agent_task_id。Nexus 从真实执行入口记录工具起止与耗时；内置助手同时记录模型等待与原请求续接。客户端本地文件编写、分析、其他工具活动不可见，Agent 必须显式 agent_task_event 上报当前动作与证据引用，并在实际执行时每30秒以内 heartbeat；禁止用心跳冒充进展或测试通过。
+
+运行中缺配置、环境、数据或业务决策时用 agent_task_question，不等最后报告。get 读取回答后 acknowledge，再核验并继续 event。UI保存答案不表示外部Agent已读取，更不能擅自唤醒外部客户端。工作流、调试会话和正式任务通过 link 关联；自动关联仍校验归属与项目。
+
+超过60秒无心跳的执行状态显示unknown并保留最后reported_status；不证明Scout停止。完成、失败、取消均显式event收口，活跃工具必须先核对。不要报告私密思维链、凭据或完整载荷，只报告可核实的动作摘要与引用。
+
+
+## 可见交付完整性
+多步任务先登记 agent_task_start，立即将 startup_message 与 board_url 发到可见对话后再开展业务；同一任务保持原链接。空地址明确提示入口未配置，不能拼猜 URL。回执优先完整输出 case_receipts[].text（模板2）：执行单元进度、用途/终态/耗时、task/case/设备/attempt/session/revision/source_hash、环境、原文预期、实际、证据引用及可用性、原因码、下一步、receipt_id。未知写未上报，回读原文与 Scout 记录再补充，不凭摘要推断根因。不把局部断言通过当整例通过，不把缺样本写成不适用，不把运行状态 pending 写成 RUNNING。按 receipt_id 去重，保留渠道、设备与重跑历史。共享阻塞说明影响 ID、已查来源、所需条件和独立分支计划；运行中心跳用真实字段。结束时交付固定六章报告及报告 ID 和看板链接，列出未验证原文项。服务端保存/校验不等于客户端已展示，不能宣称强制对话输出已经获确认。
