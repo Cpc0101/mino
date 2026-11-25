@@ -98,4 +98,6 @@
 
 
 ## 可见交付完整性
-多步任务先登记 agent_task_start，立即将 startup_message 与 board_url 发到可见对话后再开展业务；同一任务保持原链接。空地址明确提示入口未配置，不能拼猜 URL。回执优先完整输出 case_receipts[].text（模板2）：执行单元进度、用途/终态/耗时、task/case/设备/attempt/session/revision/source_hash、环境、原文预期、实际、证据引用及可用性、原因码、下一步、receipt_id。未知写未上报，回读原文与 Scout 记录再补充，不凭摘要推断根因。不把局部断言通过当整例通过，不把缺样本写成不适用，不把运行状态 pending 写成 RUNNING。按 receipt_id 去重，保留渠道、设备与重跑历史。共享阻塞说明影响 ID、已查来源、所需条件和独立分支计划；运行中心跳用真实字段。结束时交付固定六章报告及报告 ID 和看板链接，列出未验证原文项。服务端保存/校验不等于客户端已展示，不能宣称强制对话输出已经获确认。
+多步任务先登记 agent_task_start，立即将 startup_message 与 board_url 发到可见对话后，以 agent_task_event(startup_delivered=true, summary 含原 board_url) 声明发送再开展业务；同一任务保持原链接。空地址明确提示入口未配置，不能拼猜 URL。回执优先完整输出 case_receipts[].text（模板2）：执行单元进度、用途/终态/耗时、task/case/设备/attempt/session/revision/source_hash、环境、原文预期、实际、证据引用及可用性、原因码、下一步、receipt_id。未知写未上报，回读原文与 Scout 记录再补充，不凭摘要推断根因。不把局部断言通过当整例通过，不把缺样本写成不适用，不把运行状态 pending 写成 RUNNING。按 receipt_id 去重，保留渠道、设备与重跑历史。共享阻塞说明影响 ID、已查来源、所需条件和独立分支计划；运行中心跳用真实字段。结束时交付固定六章报告及报告 ID 和看板链接，列出未验证原文项。服务端保存/校验不等于客户端已展示，不能宣称强制对话输出已经获确认。
+
+上报业务阶段 phase、具体动作 summary、下一步 next_action、测试范围 scope 和环境 environment。同一任务调用必须带原 agent_task_id；测试入口拒绝缺绑定/缺发送声明，独立工具调用只在诊断中展示。声明不证明用户已读；上下文压缩后读取原任务并续接。

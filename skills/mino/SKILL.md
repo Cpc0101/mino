@@ -7,6 +7,14 @@ description: Mino 工作流统一入口。用户提到 Mino、Mino Scout/MCP、�
 
 测试任务先读[测试质量、缺口求助与逐条回执](references/execution-discipline.md)：缺口立即查证或问人，不编账号、不改原文预期；正式终态逐条在可见对话回执，调试/准备不计正式通过。
 
+## 任务看板启动门禁
+
+测试多步任务先 `agent_task_start(task_id,title,project_id,scope,environment)`。**下一条可见对话**完整发送返回的 `startup_message`，其中的 `board_url` 用可点击链接呈现，不等到测试结束再发。随后 `agent_task_event(task_id,event_id,startup_delivered=true,summary="已发送原 board_url；当前业务动作",phase="analysis",next_action="下一项具体工作")` 声明已发送。该声明不证明用户已读。未声明、缺少业务 task_id、绑定独立调用或已结束任务，测试入口拒绝执行；不能反复重试或换工具绕过。
+
+全程复用同一个 `agent_task_id`；压缩或续接先 `agent_task_get` 恢复阶段、问题、答案、范围及链接，不新建替代任务。每批本地分析/编写显式上报 `phase`、业务 `summary`、`next_action`；必要时补充 `scope` 与 `environment`。阶段为 analysis / case_design / authoring / preparation / verification / report。真实问题立即 question；读取用户答案后 acknowledge 并继续核验。
+
+空用例来源先 bootstrap → draft → 补写发布人工用例 → 回读 → init 锁定；debug_execute 和正式执行必须关联已锁定工作流。只读独立调用归入技术诊断，不代表整项任务进度。
+
 本技能只负责**选路和启动门禁**；具体编写、自检与执行分别转到对应技能。
 
 ## 强制路由
