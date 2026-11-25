@@ -117,7 +117,10 @@ def run(case):
 - 新转换用例的每个原文条目用 `source_ref` 关联执行前从 `CASE_SOURCE` 读取的原文快照，helper 内动作继承当前作用域的 source_ref。静态映射不证明运行覆盖，运行覆盖也不等于业务断言通过；
 - 设备动作失败默认中止，保留实际 status/reason_code，不捕获失败后继续冒充成功。`check` 中必须实际执行 `on_page`、`expect`、`vlm(verdict="pass")` 或 `case.nexus.assert_equal(...)` 等注册断言。空 check、仅 screenshot/note 或成功的原生 Python `assert` 都不构成有效断言证据；
 - 补充证据用 `case.nexus.note("文字", 键=值)`，不要 `print`；
-- 账号用 `case.nexus.account()` 租用，默认使用服务端项目账号约束（旧 YAML 的 `account_requirements` 保留兼容）；需要时显式传 `requirements={"all": [...], "prefer": [...]}` 或 `prefer=[...]`。业务标签辅助排序，缺省或未命中不阻塞选号；实际使用数据时验证原文业务条件，不做全量库存确认。数据需求用 data_need 字符串留存。仓库不写账号密码、登录方式或验证码策略。验证码用 `case.scout.otp(account)`：账号自带码 → Nexus 项目环境配置的 fixed/Gmail/hitl 策略 → 旧仓库兼容码 → 否则 `otp_requires_human`，不猜码。号池为空或没有匹配账号时由 Nexus 按项目环境配置自动补号。
+- 账号用 `case.nexus.account()` 租用，默认使用服务端项目账号约束（旧 YAML 的 `account_requirements` 保留兼容）；需要时显式传 `requirements={"all": [...], "prefer": [...]}` 或 `prefer=[...]`。业务标签辅助排序，缺省或未命中不阻塞选号；实际使用数据时验证原文业务条件，不做全量库存确认。数据需求用 data_need 字符串留存。仓库不写账号密码、登录方式或验证码策略。
+
+- **禁止硬编码账号字面量**：脚本任何位置都不要写邮箱、手机号、`password=` 之类的凭据字面量，也不要为了让流程跑通临时拼一个“测试账号”再当真实账号用。Nexus 静态检查和 Scout 运行时会以 `hardcoded_account_literal` / `hardcoded_account` 拦截，debug 也一样。确有必须固定的公开演示标识时，只能在那一行写 `# account-literal-ok: 原因`，并在代码评审里说明；不要把它扩展到账号/邮箱/密码。
+- **新老数据分开建脚本结论**：新账号 0→1 用例只证明注册后从零到目标状态的变化，起始业务数据按注册生命周期确认；老账号历史验证必须在同一 `account_id` 和既有对象上比较变更前基线，不能拿刚造的数据冒充历史。缺历史样本时按执行纪律求助，不重置老账号来规避。验证码用 `case.scout.otp(account)`：账号自带码 → Nexus 项目环境配置的 fixed/Gmail/hitl 策略 → 旧仓库兼容码 → 否则 `otp_requires_human`，不猜码。号池为空或没有匹配账号时由 Nexus 按项目环境配置自动补号。
 
 ## 3. `app` 的方法与渠道支持
 

@@ -17,6 +17,8 @@
 
 记录 `事实 / 推测 / 冲突 / 未知`；事实附来源、版本、环境和证据引用。资产记忆只作线索，使用前观察确认；不把推测保存为确定的业务事实。
 
+飞书来源按阶梯取证：`wiki +node-get` 解析节点 → 文档用 `docs +fetch --doc-format markdown`，表格用 `sheets +sheet-list` → `sheets +cells-get` 读指定范围；群聊用 `im +chat-search --query "<群名>"` 找到 `chat_id` 后再 `im +chat-messages-list`。bot 不在群、CLI 返回权限拒绝或范围截断时，保存原始错误码，不重复同一拒绝，也不用截图或复述聊天内容冒充正文。缺的数据先按这条阶梯查证并学习后再继续测试，不能凭印象补。
+
 没有可用来源、原文存在决定结论的冲突、缺账号/历史样本/权限且不能在现有授权内准备，或调查无进展时，立即提出自包含问题：
 
 ```json
@@ -60,7 +62,13 @@
 
 ## 5. 可见回执与结论门槛
 
-开跑前发范围、环境、阶段、共享缺口与预算。运行中每获得一个终态立即发一条可见 Agent 进度消息（Codex 的 commentary 或所在客户端对应渠道）。没有终态且持续执行超过约60秒时，输出最近真实步骤、已耗时、正在等待什么和最近证据；没有新证据就说没有，不输出虚构进度。
+开跑前发范围、环境、阶段、共享缺口与预算。运行中每获得一个终态立即发一条可见 Agent 进度消息（Codex 的 commentary 或所在客户端对应渠道）。没有终态且持续执行超过约60秒时，必须输出一条心跳，字段直接取自 `task_get.observability.active_cases`，不手写估算：
+
+```text
+[i/N] CASE | RUNNING | 92s | step: 打开运费模板编辑页 | waiting: 列表接口返回 | evidence: shot#3
+```
+
+`started_at` 取任务真实开始时间；`elapsed_ms` 换算成秒；`step` 用 `active_cases[].step`；`waiting_on` 非空照搬，空写“无”；`last_evidence` 取最近一条证据引用，没有就写“暂无新证据”。`heartbeat_due_sec` 到期就发，不发“还在跑”“继续等待”这类无字段文案。旧服务没有 `active_cases` 时，按 `task_get.cases[]` 的 status/step 和本轮真实开始时间手算，并在心跳后注明“本地计时，服务端未提供”。
 
 新版 `task_get.observability.case_receipts` 提供稳定 `receipt_id`、用途、结果、耗时、原因和证据上下文。按 receipt_id 去重后逐条输出；同一任务的更新回执明确标“结果更新”，重跑保留新 attempt。对话压缩/中断后从记录恢复已发 ID，不能凭“查过结果”当作已经通知。旧服务没有该字段时按 task/case/device/attempt/summary_version 去重真实结果。
 

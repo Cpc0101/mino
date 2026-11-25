@@ -26,6 +26,8 @@ description: 通过 Nexus 运行已写好的用例，读取执行 Scout 的记�
 - 如果用户明确只要求回归当前已有脚本，应在开跑前说明这是当前脚本子集，不能暗示原文全集已完成。
 - 每条用例执行后读取真实 Scout 结果；只有有 `task_id` 和断言证据的 verification 才能计为 `formal_verified`，接单、动作完成或静态检查通过都不算。
 
+正式 `case_run` 带 `script_targets` 时必须传 `workflow_id`，并保证 `project_id` 与本工作流一致；Nexus 会拒绝没有绑定成功 `case_source_read` 收据、范围未锁定、来源未验证或用例不在 `expected_units` 内的请求。401/400 `formal_run_requires_workflow_binding` 一类错误不是环境问题，先补 `agent_workflow_init` 再跑，不绕过门禁。
+
 每批完成 5–10 条后重新读取 `agent_workflow_get.coverage`，从 `next_units` 自动继续。`verification_complete=true` 只表示当前验证阶段没有未处理项，仍可能含 `blocked_units`；正式全集通过必须满足 `all_verified=true`。否则只有所有剩余条目都有明确 blocked/failed/deferred 证据时才可结束本轮，并逐条报告缺口。`coverage.complete` 只是脚本实现阶段的兼容别名，不能证明正式测试已完成。
 
 ## 1. 执行

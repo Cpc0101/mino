@@ -2,6 +2,16 @@
 
 每个版本写清需要的 Scout / Nexus 版本。技能说的和实际对不上时，先核对这里。
 
+## 0.1.24
+
+- 正式 `case_run` 增加 workflow 绑定门禁：带 `script_targets` 时必须传 `workflow_id`，且项目、`case_source_read` 收据、范围锁定与 `expected_units` 一致；`workflow_not_found` / `workflow_scope_unlocked` / `workflow_source_unverified` / `case_not_in_workflow_scope` 都是配置错误，不得绕过。
+- `task_get.observability.active_cases` 增加 `started_at`、`elapsed_ms`、`step`、`waiting_on`、`last_evidence`、`heartbeat_due_sec` 等字段；技能要求每 60 秒输出固定格式心跳，终态逐条带 `receipt_id`。
+- 禁止脚本硬编码邮箱、手机号、`password=` 等账号字面量；Nexus 静态检查与 Scout 运行时都会以 `hardcoded_account_literal` / `hardcoded_account` 拦截，debug 同样生效。仅允许同行 `# account-literal-ok:` 豁免。
+- 飞书来源查询固定阶梯：wiki 节点 → 文档/表格正文 → `im +chat-search --query` 找群后读消息；权限拒绝或范围截断保存原始失败，不用截图替代。
+- 新账号 0→1 与老账号历史基线分开建立结论，缺历史样本时求助而不是重置老账号。
+
+需要 MinoNexus `0.1.127`、MinoScout `0.1.168`；技能更新后需新开会话加载。
+
 ## 0.1.23
 
 - 测试质量门禁：正式通过必须绑定 Scout 原文覆盖、断言和执行身份；准备、探针与正式验证分开，不以动作成功替代测试通过。

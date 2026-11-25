@@ -68,6 +68,8 @@ python3 "<mino-skill-dir>/scripts/install_routing_policy.py" --check
 
 需要多轮需求分析、脚本编写、数据准备或执行调试时，使用 [Agent 进度与预算](references/workflow-ledger.md) 中的 Nexus MCP 记录。先记录本轮目标和预算，按返回的 allowed/next 收敛调查；相同缺口无新证据不重复申请或重跑。Agent 决定调查和补数方式，Nexus 只保存进度；进度不替代测试结论。
 
+正式 `case_run` 带 `script_targets` 必须传当前 `workflow_id`；Nexus 会拒绝没有成功 `case_source_read` 收据、范围未锁定或项目不匹配的请求。执行中每 60 秒输出一条由 `task_get.observability.active_cases` 字段拼成的可见心跳，每个终态立即输出带 `receipt_id` 的逐条回执。账号只能用 `case.nexus.account()`，脚本里的邮箱/手机号/密码字面量会在 Nexus 静态检查和 Scout 运行时被拦截。
+
 | 目标 | 技能 |
 |---|---|
 | 系统分工、工具边界 | `overview` |
