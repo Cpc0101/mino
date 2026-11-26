@@ -1,9 +1,18 @@
 ---
 name: mino
-description: Mino 工作流统一入口。用户提到 Mino、Mino Scout/MCP、跑用例、连接测试设备，或要操作被测 Android、iOS、Web、桌面软件、浏览器页面、截图和界面结构时优先使用。先检查持久路由与更新，再强制经 Mino MCP 与 Mino Scout 执行。
+description: Mino 测试任务路由入口。按用户当前测试意图启用：分析用例、编写或执行测试、对被测设备/UI取证；普通对话、产品代码开发审查、构建发布部署、域名/TLS运维不启动测试工作流。Mino控制面操作仍用MCP，本机Scout管理仍用CLI。
 ---
 
 # Mino 统一入口
+
+## 先判断当前任务意图
+
+Agent 根据用户当前目标判断，不因提到 Mino、调用一次 MCP、任务有多个步骤或上一轮在测试就自动开启测试流程。
+
+- **测试任务**：分析人工用例、写/跑测试脚本，或为测试断言操作被测 UI 并取证。才启用下面的测试看板、来源锁定、覆盖率和回执门禁。
+- **非测试任务**：普通对话、系统原理咨询、产品代码开发/审查/修复、构建发布部署、域名/TLS 运维。使用正常开发工具；不得创建测试看板或假装业务测试进度。
+- **独立控制面诊断**：查询任务/节点/原始回执仍经 Mino MCP，本机 Scout 状态/生命周期仍经 CLI，但只读查询本身不需要新测试任务。
+- 意图确实不明时简短确认；用户切换任务后重新判断。代码回归检查不是被测业务用例，不自动启用业务工作流。
 
 测试任务先读[测试质量、缺口求助与逐条回执](references/execution-discipline.md)：缺口立即查证或问人，不编账号、不改原文预期；正式终态逐条在可见对话回执，调试/准备不计正式通过。
 
@@ -65,7 +74,7 @@ python3 "<mino-skill-dir>/scripts/install_routing_policy.py" --check
 
 `state` 不是 `current` 时，向用户说明：Skill 与 MCP `initialize.instructions` 是软引导，平台仍可能优先选择 Computer Use；写入 `$CODEX_HOME/AGENTS.md`（未设置时为 `~/.codex/AGENTS.md`）的托管块才会成为跨会话持久规则。**取得用户确认后**再执行 `--apply`，由 Agent 完成写入，不得静默修改用户主目录，也不要让用户自己复制路径或命令。目标客户端若使用其他 `AGENTS.md` 路径，显式传 `--path`；遇到 `conflict` 就停下，不覆盖原文件。规则变更后通常需要新开会话才生效。
 
-4. **检查 Codex UI guard**（预检输出中的 `codex_guard`）：本机若仍暴露 `cua_repl`、屏幕捕获或可执行浏览器自动化的 `node_repl`，必须把“提示优先 Mino”与“工具已被阻断”分开陈述。`state` 不是 `current` 时，说明它会阻断 Computer Use、屏幕捕获和 `node_repl` 中的 Playwright/Puppeteer 等浏览器自动化，同时保留普通 JS 与其他 hooks；取得用户确认后执行 `install_codex_guard.py --apply`。它是可撤销的 `PreToolUse` guardrail，不是完整 sandbox，也不能替代管理员 `requirements.toml`；hook 失败或特殊/hosted tool 路径仍可能绕过。变更后需新开 Codex 会话，并在 `/hooks` 中审查、信任该用户级 hook；未信任时 Codex 会跳过。
+4. **检查 Codex UI guard**（预检输出中的 `codex_guard`）：本机若仍暴露 `cua_repl`、屏幕捕获或可执行浏览器自动化的 `node_repl`，必须把“提示优先 Mino”与“工具已被阻断”分开陈述。`state` 不是 `current` 时，说明它仅在 Agent 显式启用的测试会话中阻断 Computer Use、屏幕捕获和 `node_repl` 中的 Playwright/Puppeteer 等浏览器自动化，普通任务默认不阻断；取得用户确认后执行 `install_codex_guard.py --apply`。它是可撤销的 `PreToolUse` guardrail，不是完整 sandbox，也不能替代管理员 `requirements.toml`；hook 失败或特殊/hosted tool 路径仍可能绕过。变更后需新开 Codex 会话，并在 `/hooks` 中审查、信任该用户级 hook；未信任时 Codex 会跳过。
 
 5. **调用 MCP `agent_guide`**，读取当前路由契约和工具列表；不要凭记忆猜工具。若 MCP 尚未配置，先转 `onboarding` 门禁完成接入，接入后再调用；不要因此改用其他工具。
 6. 预检结果为 `current`、`unknown` 或本机未安装时，按实际结果继续判断当前任务需要 MCP、CLI 还是首次安装；`unknown` 必须如实说明。
@@ -102,3 +111,7 @@ python3 "<mino-skill-dir>/scripts/install_routing_policy.py" --check
 ## 为什么还需要 AGENTS.md
 
 技能触发和 MCP 返回的 instructions 都依赖客户端选择，不能保证压过平台内置的 Computer Use、Browser 或其他 MCP。`AGENTS.md` 是 Codex 的持久行为约束，适合写“测试任务必须经 Mino MCP/Scout”这类每次都要遵守的路由规则。要阻止已知本地 UI 工具调用，可安装本技能的 Codex `PreToolUse` guard；要真正撤销工具暴露并形成不可由用户绕过的边界，仍必须由客户端管理员策略（如 `requirements.toml`）关闭 Computer Use/Browser。不要把三者混为同一等级的强制力。
+
+## 可选会话级 UI guard
+
+安装 guard 不等于开启测试模式。仅当已判断为测试任务、客户端提供真实 session_id 时，Agent 使用 `install_codex_guard.py --activate-session <session_id>` 开启该会话保护；用户切换到非测试工作或测试结束时 `--deactivate-session <session_id>`。不要编造 session_id。无 session_id 时依赖上面的行为路由，不声称工具已阻断。会话标记最长有效 24 小时；新会话默认未启用。

@@ -3,9 +3,11 @@
 
 This block is managed by the installed `mino` skill. Do not edit it by hand; re-run `scripts/install_routing_policy.py --apply` to refresh it.
 
-Treat a request as a Mino task when it names Mino, Mino Scout, Mino Nexus, or Mino MCP, or when it asks to inspect, operate, screenshot, automate, debug, or verify an Android, iOS, Web, browser, or desktop target for testing/QA. This block does not change routing for ordinary desktop work unrelated to testing.
+The agent must classify the current user request by intent, not by product names or previous turns. Activate the Mino testing workflow only for an explicit QA/testing request: analyzing source cases, authoring or running test scripts, or inspecting/interacting with a target to establish a test assertion and evidence. Merely mentioning Mino, reading code, reviewing/fixing infrastructure, building/releasing/deploying software, domain/TLS operations, general product questions, and ordinary desktop work do not activate a testing workflow or require a test board. If intent is genuinely ambiguous, ask a short clarification instead of creating a workflow. Reclassify when the user changes tasks.
 
-Within a Mino task:
+Mino/Nexus control-plane operations still use Mino MCP, and local Scout lifecycle/status uses mino-scout CLI, even outside testing; read-only diagnostics do not by themselves create a business test task. Ordinary repository edits, shell checks and deployment use their normal tools.
+
+Within an explicitly classified Mino testing task:
 
 - For Mino/Nexus control-plane operations, use the Mino MCP server only. Do not substitute a generic browser, database, shell, or another MCP server for equivalent Mino operations.
 - When a Feishu document or spreadsheet contains the source cases, read it through Mino MCP `cli_query(plugin="feishu")`: use `wiki +node-get`, then `sheets +sheet-list`, then `sheets +cells-get`. Do not use Computer Use, browser screenshots, or copied visible fragments as a substitute for Feishu CLI content. If the CLI is unavailable or returns an incomplete range, report the concrete failure instead of guessing.

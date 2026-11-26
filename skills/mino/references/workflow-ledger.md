@@ -1,5 +1,7 @@
 # Agent 进度、重复阻塞与调查预算
 
+仅适用于用户明确要求的测试任务；普通产品开发、发布部署和控制面只读诊断不创建此工作流。
+
 理解需求、编写脚本、准备数据和正式验证分别记录为 `analysis/authoring/preparation/verification`。进度通过 Nexus MCP 保存到服务端当前数据库，按登录用户与 workflow_id 隔离；当前 Python 部署使用 SQLite。Agent 和 Scout 都不创建本地进度数据库。
 
 先调用 `agent_guide` 确认当前服务提供 `agent_workflow_init/start/finish/resolve/get`。scope 包含项目、需求和本次范围，独立用例或缺口作为 unit。同一 workflow_id 继续使用原范围和预算，不能重置预算来绕过收敛。每个 unit、阶段默认 6 轮；总预算默认至少为 `expected_units × 4`，42 条用例即至少 168 轮。普通任务状态轮询不另占调查预算。

@@ -8,6 +8,8 @@ PreToolUse 的本地函数/MCP 工具；hosted tool、特殊工具路径和 hook
 from __future__ import annotations
 
 import argparse
+import hashlib
+import time
 import json
 import os
 import shlex
@@ -45,8 +47,11 @@ GUARD_SCRIPT = '''#!/usr/bin/env python3
 """Block Codex UI tools that bypass Mino Scout for target UI work."""
 from __future__ import annotations
 
+import hashlib
 import json
 import sys
+import time
+from pathlib import Path
 
 BLOCKED_PREFIXES = ("mcp__cua_repl__",)
 BLOCKED_EXACT = {"mcp__codex_app__capture_screen_context"}
@@ -67,12 +72,28 @@ def browser_automation(payload: dict) -> bool:
     return any(marker in rendered for marker in BROWSER_AUTOMATION_MARKERS)
 
 
+def testing_session(payload: dict) -> bool:
+    session_id = payload.get("session_id")
+    if not isinstance(session_id, str) or not session_id.strip() or len(session_id) > 512:
+        return False
+    path = Path(__file__).resolve().parent / "mino-test-sessions" / (hashlib.sha256(session_id.encode()).hexdigest() + ".json")
+    try:
+        state = json.loads(path.read_text(encoding="utf-8"))
+        expires = state.get("expires_at")
+        now = time.time()
+        return state.get("session_id") == session_id and type(expires) in (int, float) and now < expires <= now + 86400
+    except (OSError, ValueError, TypeError, AttributeError):
+        return False
+
+
 def main() -> int:
     try:
         payload = json.load(sys.stdin)
     except Exception:
         payload = {}
     tool_name = str(payload.get("tool_name") or "") if isinstance(payload, dict) else ""
+    if not isinstance(payload, dict) or not testing_session(payload):
+        return 0
     blocked_ui = tool_name.startswith(BLOCKED_PREFIXES) or tool_name in BLOCKED_EXACT
     blocked_browser = tool_name.startswith(NODE_REPL_PREFIX) and browser_automation(payload)
     if blocked_ui or blocked_browser:
@@ -81,7 +102,7 @@ def main() -> int:
             "for local authoring, or case_run for formal execution, routed to Mino Scout. "
             "Computer Use, screen capture, and browser automation are not valid substitutes. "
             "Do not bypass this guard through shell commands or another automation tool. "
-            "Call agent_guide and use Scout; disable this guard only after an explicit user request."
+            "Call agent_guide and use Scout; deactivate this session guard when the user switches to a non-testing task."
         )
         print(json.dumps({
             "hookSpecificOutput": {
@@ -176,7 +197,7 @@ def _desired_group(script: Path) -> dict[str, Any]:
             {
                 "type": "command",
                 "command": _command(script),
-                "statusMessage": "Blocking non-Mino target UI tools",
+                "statusMessage": "Checking explicit Mino testing session",
                 "timeout": 3,
             }
         ],
@@ -234,6 +255,10 @@ def _apply(hooks_path: Path) -> dict[str, Any]:
         raise ValueError("hooks.PreToolUse 必须是数组")
 
     script = default_script_path(hooks_path)
+    try:
+        script_changed = script.read_text(encoding="utf-8") != GUARD_SCRIPT
+    except OSError:
+        script_changed = True
     _atomic_write(script, GUARD_SCRIPT, 0o700)
     hooks["PreToolUse"] = [group for group in groups if not _managed_group(group)] + [_desired_group(script)]
     updated = json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
@@ -247,7 +272,8 @@ def _apply(hooks_path: Path) -> dict[str, Any]:
         "script": str(script),
         "state": "current",
         "changed": changed,
-        "requires_new_session": changed,
+        "requires_new_session": changed or script_changed,
+        "default_active": False,
         "activation": "new_session_and_trust",
         "trust_required": True,
         "next_step": "新开 Codex 会话，在 /hooks 中审查并信任该用户级 hook；未信任时 Codex 会跳过。",
@@ -278,17 +304,39 @@ def _remove(hooks_path: Path) -> dict[str, Any]:
     }
 
 
+def set_session(hooks_path: Path, session_id: str, active: bool) -> dict[str, Any]:
+    if not session_id.strip() or len(session_id) > 512:
+        raise ValueError("需要客户端提供的非空 session_id（最长512字符）")
+    script = default_script_path(hooks_path)
+    if active and inspect_guard(hooks_path)["state"] != "current":
+        raise ValueError("先安装/刷新会话级 guard，再启用测试会话")
+    path = script.parent / "mino-test-sessions" / (hashlib.sha256(session_id.encode()).hexdigest() + ".json")
+    if active:
+        _atomic_write(path, json.dumps({"session_id": session_id, "expires_at": time.time() + 86400}) + "\n", 0o600)
+        changed = True
+    else:
+        changed = path.exists()
+        path.unlink(missing_ok=True)
+    return {"state": "testing" if active else "inactive", "session_id": session_id, "scope": "session", "changed": changed}
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     action = parser.add_mutually_exclusive_group()
     action.add_argument("--check", action="store_true", help="只读检查（默认）")
     action.add_argument("--apply", action="store_true", help="安装或刷新 guard")
     action.add_argument("--remove", action="store_true", help="移除 Mino guard，保留其他 hooks")
+    action.add_argument("--activate-session", metavar="SESSION_ID", help="仅开启指定测试会话，最长24小时")
+    action.add_argument("--deactivate-session", metavar="SESSION_ID", help="结束或切换任务时关闭指定会话保护")
     parser.add_argument("--path", default="", help="hooks.json 路径，默认 $CODEX_HOME/hooks.json")
     args = parser.parse_args(argv)
     target = Path(args.path).expanduser() if args.path else default_hooks_path()
     try:
-        if args.apply:
+        if args.activate_session:
+            result = set_session(target, args.activate_session, True)
+        elif args.deactivate_session:
+            result = set_session(target, args.deactivate_session, False)
+        elif args.apply:
             result = _apply(target)
         elif args.remove:
             result = _remove(target)

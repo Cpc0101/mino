@@ -373,7 +373,7 @@ def _guard_action(codex_guard: dict[str, Any]) -> dict[str, Any] | None:
             f"是否允许我写入可撤销的 PreToolUse guard 到 {path}？"
         ),
         "impact": (
-            "它会阻断 cua_repl、屏幕捕获和 node_repl 中的浏览器自动化，并保留其他 hooks；"
+            "默认不阻断；仅在 Agent 显式启用的测试会话中阻断 cua_repl、屏幕捕获和 node_repl 中的浏览器自动化，并保留其他 hooks；"
             "它是本地 guardrail，不是完整 sandbox，不能替代管理员 requirements.toml。"
             "变更后需新开会话，并在 /hooks 中审查并信任该用户级 hook；未信任时会跳过。"
         ),
