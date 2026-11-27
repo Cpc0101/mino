@@ -121,7 +121,13 @@ description: 通过 Nexus 运行已写好的用例，读取执行 Scout 的记�
 
 ### 隔离
 
-`resource_isolated=true` 时保留隔离。若实际服务提供 `task_write_safety_baseline`，按其返回确认是否满足停止与释放条件；不能仅凭一次截图或“任务已终态”宣称租约释放。恢复动作不改变历史断言结论；未确认释放时明确报告仍隔离。
+`resource_isolated=true` 时保留隔离。取消受理、任务终态、节点重启、租约到期均不代表资源自动可用；后台恢复也必须取得原 Scout 的停止证据，不能建议等待 TTL 后硬跑或抢占。
+
+- 先读取任务及 `task_write_safety`（以实际 MCP 工具名/返回为准）。只有用户要求恢复该任务资源时，才对本人已结束的 Web 任务调用 `task_resource_reconcile`；由原 Scout 核验执行停止与浏览器关闭，Nexus 按记录版本和租约代次原子释放资源及账号。
+- `stop_evidence_required` 保留隔离并补停止证据；`evidence_temporarily_unavailable` 恢复原 Scout 连接后再核验；`resource_resolution_conflict` 重新读取当前版本；`resource_baseline_required` 走基线核验，不能把非 Web 任务送入 Web 释放接口。历史写结果未知时，仅在服务明确提供复核能力且用户明确要求恢复资源后调用 `task_write_safety_baseline`，不重放原写动作。
+- 如实展示返回的 `reason_code`、`message`、`reason_detail` 和 HTTP 状态。请求成功、一次截图或 `resource_isolated=false` 不单独证明账号租约已经释放；应核对 `isolation_exit.committed=true` 及释放清单，再读取最新资源状态。响应缺少退出回执、请求失败或结果未知时，报告释放尚未确认，不自动重发或改请求 ID 绕过。
+
+恢复动作不改变历史断言结论，也不证明业务复位或允许复跑；未确认释放时明确报告仍按隔离处理。
 
 ## 3. 在对话里怎么汇报
 
