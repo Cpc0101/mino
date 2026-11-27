@@ -109,3 +109,9 @@ mino-scout check --require-cases .
 - 动态 helper 或动态 `source_ref` 不能因为静态不确定就强行改成另一套固定动作语言；必须用执行记录确认实际覆盖。
 - `locator_spec` 是否可用不能靠静态格式判断。定位只从本次调试会话或 `case_run` 后 Scout 返回的 `nodes` 或 `hierarchy_text` 中取得；没有该次界面证据就不要写。
 - 命令不存在说明本机没装 Scout：按 `onboarding` 门禁 3 协助安装，不要只丢文档链接。
+
+## 认证与输入的交付复核
+
+按 [会话、认证与验证码闭环](../write-test-cases/references/session-authentication.md) 人工复核：同 chat 与 session 未混用、旧租约有显式管理、当前 context 身份在业务写前成立、HTTP/业务失败先于 taskId 等待、登录表单与兴趣引导分开、取码没有并行诊断、输入显式且输出按 run/attempt/request 隔离。缺字段/能力保持未知，不编造接口。
+
+这些语义不保证被现有 `mino-scout check` 自动覆盖；静态检查通过后仍须核对对应 Scout 回执和实际断言。技能仓文档校验不是业务脚本门禁，不为检查技能文档创建业务用例或运行 UI。

@@ -120,7 +120,7 @@ def run(case):
 - 账号用 `case.nexus.account()` 租用，默认使用服务端项目账号约束（旧 YAML 的 `account_requirements` 保留兼容）；需要时显式传 `requirements={"all": [...], "prefer": [...]}` 或 `prefer=[...]`。业务标签辅助排序，缺省或未命中不阻塞选号；实际使用数据时验证原文业务条件，不做全量库存确认。数据需求用 data_need 字符串留存。仓库不写账号密码、登录方式或验证码策略。
 
 - **禁止硬编码账号字面量**：脚本任何位置都不要写邮箱、手机号、`password=` 之类的凭据字面量，也不要为了让流程跑通临时拼一个“测试账号”再当真实账号用。Nexus 静态检查和 Scout 运行时会以 `hardcoded_account_literal` / `hardcoded_account` 拦截，debug 也一样。确有必须固定的公开演示标识时，只能在那一行写 `# account-literal-ok: 原因`，并在代码评审里说明；不要把它扩展到账号/邮箱/密码。
-- **新老数据分开建脚本结论**：新账号 0→1 用例只证明注册后从零到目标状态的变化，起始业务数据按注册生命周期确认；老账号历史验证必须在同一 `account_id` 和既有对象上比较变更前基线，不能拿刚造的数据冒充历史。缺历史样本时按执行纪律求助，不重置老账号来规避。验证码用 `case.scout.otp(account)`：账号自带码 → Nexus 项目环境配置的 fixed/Gmail/hitl 策略 → 旧仓库兼容码 → 否则 `otp_requires_human`，不猜码。号池为空或没有匹配账号时由 Nexus 按项目环境配置自动补号。
+- **新老数据分开建脚本结论**：新账号 0→1 用例只证明注册后从零到目标状态的变化，起始业务数据按注册生命周期确认；老账号历史验证必须在同一 `account_id` 和既有对象上比较变更前基线，不能拿刚造的数据冒充历史。缺历史样本时按执行纪律求助，不重置老账号来规避。验证码沿单一发码边界取码（见 [会话、认证与验证码闭环](references/session-authentication.md)），基础入口为 `case.scout.otp(account)`：账号自带码 → Nexus 项目环境配置的 fixed/Gmail/hitl 策略 → 旧仓库兼容码 → 否则 `otp_requires_human`，不猜码。号池为空或没有匹配账号时由 Nexus 按项目环境配置自动补号。
 
 ## 3. `app` 的方法与渠道支持
 
@@ -189,7 +189,7 @@ def run(case):
 
 ## 6. 编写流程
 
-涉及业务数据与对象准备时，先读 [运行时数据与业务 flow](references/runtime-data-and-flows.md)。首次进入编写现场时，读 [本机调试会话与两套工作区](references/debug-workspaces.md)。
+涉及业务数据与对象准备时，先读 [运行时数据与业务 flow](references/runtime-data-and-flows.md)。涉及续接、租号、认证、登录或 OTP 时，先读 [会话、认证与验证码闭环](references/session-authentication.md)，先核验当前 context 身份，再执行依赖认证的写动作。首次进入编写现场时，读 [本机调试会话与两套工作区](references/debug-workspaces.md)。
 
 1. **需求拆解**：按 `analyze-test-case` 固定原文与版本，明确每条前置、操作和业务预期。需求决定测什么，真实页面决定怎么操作。
 2. **确认本机现场**：使用 `mino-scout status` 确认本机节点，以 MCP `device_list` 核验该节点设备可执行。没有本机设备时可以整理需求、记录缺口，不能编造定位或声称路径已验证。远端 Scout 只用于正式执行。

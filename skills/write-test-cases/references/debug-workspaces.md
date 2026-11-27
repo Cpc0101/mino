@@ -19,6 +19,8 @@
 
 ## 会话操作
 
+续接、旧账号占用、认证或 OTP 问题先读 [会话、认证与验证码闭环](session-authentication.md)。先查原 session 和指定 request，再决定复用或关闭；同 chat/目录/sn 不构成相同 session。
+
 先读当前 `agent_guide` 和工具表，再用本机 `mino-scout status` 与 MCP 设备信息核对 `node_id` / `sn`。用 `debug_case` 传 `workspace` 绝对路径、`app_id`、`app_key`、环境和稳定的 `client_request_id`。启动是异步的，拿到 session_id 后查询 `debug_case_status`，到 ready 才执行片段。
 
 `debug_case_execute` 传同一 session_id、新的请求 ID，以及二选一的输入：
@@ -38,7 +40,7 @@ app.screenshot()
 
 每段记录 workspace_hash、code_hash、文件哈希、动作范围和断言。可传 `workspace_hash` 拒绝意外变化；不传时使用本次执行开始时捕获的版本。`observed` 仅表示片段完成，`assertions_passed` 只证明这一片段实际运行的断言；均不构成正式用例通过。历史证据不自动证明修改后的版本有效。
 
-重复投递同一请求保留请求 ID 与参数，查询原结果；参数变化必须使用新 ID。同一会话同时只接收一段执行。`timeout_sec` 限制当前片段（1–3600 秒，默认 60），会话没有固定总时长。
+重复投递同一请求保留请求 ID 与参数，查询原结果；参数变化必须使用新 ID。同一会话同时只接收一段执行。`timeout_sec` 限制当前片段（1–3600 秒，默认 60），会话没有固定总时长。超时按指定 command 的 started_at/finished_at 与预算判断，不用顶层 session elapsed_ms；ready/idle 仍可持有租约，不代表释放。
 
 - `debug_case_cancel`：取消指定片段，能够协作停止时保留现场。强制终止执行进程时会话中断，资源保持隔离。
 - `debug_case_reset`：显式关闭并重新启动绑定应用、清除片段变量，保留租约和证据，不清应用缓存。

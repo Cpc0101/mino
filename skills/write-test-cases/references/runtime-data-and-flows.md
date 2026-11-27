@@ -76,3 +76,12 @@ case.data.bind("account_id", account.id)
 - 弹窗或重绘：仍传 `model`，在新结构对应的控件模板重新绑定和观察。
 - 跨页：携带 `model` 到商详页，绑定预览控件，并用 `expect_value` 等核验同一 ID/URL；导航成功不能替代对象关系验证。
 - 跨应用：传普通值到 B，按 B 实际展示的业务 ID 或明确映射生成 B 的绑定键；A 的绑定键只属于 A，不能跨 app 复用。没有共有 ID 时用实际映射及足以区分的组合特征，候选不唯一返回歧义。
+
+## 显式输入与隔离输出
+
+- 正式执行通过 `case_run.case_inputs` 按用例 ID/脚本路径显式传 `account_id`、目标模型/对象、参数和需要的输入资源引用。脚本通过 `case.data.inputs/require` 消费；不从共享 `/tmp/.../qa_params.json`、环境残留或“最新结果”隐式读取。凭据仍由 Nexus 租号提供，不放 inputs。
+- 调试只使用当前工具 schema 明确支持的输入方式；不能猜 `debug_case_execute.inputs/case_inputs` 字段。若版本没有结构化输入，非敏感参数作为本片段 `code` 中的显式字面量固定并随 code_hash 留证；输入资源在 workspace 内保留不可变副本并核对捕获文件哈希。不能依赖片段外可变的共享文件。无法固定必需输入时记录缺口，不伪称可复现。
+- `script_path` 的新执行可能刷新 `case.data`；code 片段变量保留不等于正式输入继承。重建 session、run 或 attempt 必须重新提供输入，准备任务产出经核验后显式传入续跑任务；不把旧 data_outputs 自动混入本次。
+- 输出写到当前 `case.output_dir`。正式 attempt 的目录由 Scout 隔离；debug 多片段可共享同一 attempt 目录，所以还需以本次实际 request 引用建立唯一子目录/文件名，不能仅用可重复 tag 写回共享 q_tag.json。引用来自回执或显式非敏感参数；不猜内部 case.request_id 属性。禁止覆盖前一次文件。
+- 对外引用输出时记录 task/run/session/attempt/request、实际账号与环境、输入/源码/输出哈希、对象归属及 artifact 引用。大文件留在隔离输出并通过现有证据接口读取，`case.data.bind` 只保存允许大小的可序列化对象值；输出存在或文件修改时间不等于封存证据或业务通过。
+- 账号资源记忆和报告导出可作为索引，但原始输出仍按执行身份保存；跨 run 使用必须显式传对象引用并核验归属，不能将当前共享文件冒充旧 attempt 的输入/结果。

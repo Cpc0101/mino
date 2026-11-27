@@ -9,6 +9,8 @@ description: 通过 Nexus 运行已写好的用例，读取执行 Scout 的记�
 
 **触发与读结果用 MCP；本机 Scout 运维用 CLI。** Nexus 管任务索引、设备/账号租约和状态投影；Scout 拉仓、独立执行并保存完整记录。Workbench 从 Nexus 取列表，经 Nexus 转发读取原执行 Scout 的详情。正式执行的 Git 副本、输出和证据保存在执行工作区的 task_id 目录下，不删除为临时副本；各 attempt 的 source/output 独立。旧记录继续可读。
 
+认证、登录/OTP 排障、续接或租约冲突先读 [会话、认证与验证码闭环](../write-test-cases/references/session-authentication.md)。正式 run 不继承 debug context；显式 `account_id` 仅约束租号，不能替代本次认证。
+
 本技能负责固定版本的正式执行。本机编写与保留现场的调试使用 write-test-cases 的 `debug_case` 流程。远端 Scout 只执行正式用例；执行输出目录以 `session_record` 返回的路径为准，不在编写工作区堆放运行数据。
 
 执行 Mino 任务时，被测 UI 只经 MCP `case_run` → Scout 操作和取证。不得用 Computer Use、浏览器控制、Playwright、adb、Appium、WDA 或其他桌面自动化工具替代 Scout，也不得先手动点一遍再声称已由 Scout 验证。
@@ -44,7 +46,7 @@ description: 通过 Nexus 运行已写好的用例，读取执行 Scout 的记�
    | `blocking_code` / `blocked_reason` | 不能用的原因，如 `busy`、`node_offline`、`channel_offline`、`app_incompatible`、`capability_missing`、`not_owned`、`unclaimed` |
    | `platform` / `model` / `node_name` | 用来和用例要求的平台匹配、向用户说明 |
 
-   规则：只选 `executable=true` 且平台和用例一致的设备；有多台就列给用户或按用户指定的选；web 设备不会被独占：一台 Scout 同时可以开最多 4 个浏览器会话（4 个并行槽位），所以 `busy_task_id` 始终为空，要看 `web_parallel_full`（4 个都占满才不能再派）；全部 `busy` 就告诉用户谁占着（`busy_task_id`），**不要抢占、不要硬跑**；设备被隔离（`isolation`）时先按 §2 的隔离流程处理。设备是否空闲只由 Nexus 给出，Scout 不会替你判断。
+   规则：只选 `executable=true` 且平台和用例一致的设备；有多台就列给用户或按用户指定的选；web 设备不会被独占：Web 容量以当前服务返回的 lane 总数/空闲数和 executable/blocking_code 为准，不硬编码 4 个槽位，也不把 busy_task_id 为空当作一定可派；`web_parallel_full` 表示当前容量已满；全部 `busy` 就告诉用户谁占着（`busy_task_id`），**不要抢占、不要硬跑**；设备被隔离（`isolation`）时先按 §2 的隔离流程处理。设备是否空闲只由 Nexus 给出，Scout 不会替你判断。
 3. **先装齐这次要用的渠道程序，再开跑（MCP）。** `scout_list` 找 `node_id`，`plugin_status(node_id)`。只补本次平台缺的：
 
    | 这次要跑 | 缺了才装 | 调用 |
