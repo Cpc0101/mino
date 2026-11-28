@@ -138,7 +138,7 @@ description: 通过 Nexus 运行已写好的用例，读取执行 Scout 的记�
 | `unconfirmed` | 先读封存记录里的 `test_report.attribution` 和断言。没有新事实不重跑 |
 | `verified` | 封存证据有效，继续下一条 |
 
-需求指定了构建时，`case_run` 传 `expected_build`。正式脚本在业务断言前调用 `app.version()`。用例输入里有 `package_path` 且当前版本不符时，`version()` 会安装这个本地包再读一次版本。没有安装包路径时仍收成 `build_mismatch`。Scout 写入 `tested_build`，并在与 `expected_build` 不一致或未读取时把这次执行收成 `build_mismatch`，不保留原先的通过。渠道不支持读版本时不能补写版本号。
+需求指定了构建时，`case_run` 传 `expected_build`。正式脚本在业务断言前调用 `app.version()`。用例输入里有 `package_path` 或 https 的 `package_url` 且当前版本不符时，`version()` 会安装这个包再读一次版本。没有安装包时仍收成 `build_mismatch`。Scout 写入 `tested_build`，并在与 `expected_build` 不一致或未读取时把这次执行收成 `build_mismatch`，不保留原先的通过。渠道不支持读版本时不能补写版本号。
 
 `app.expect_text` 对空格、大小写和连写一律通过，并记 `accepted_difference`。`strict=True` 也不能把 Best Sellers 和 Bestsellers 打成失败；只有折成同一串之后仍然不同的词才失败。不要用子串或同义词放宽。
 
@@ -146,7 +146,7 @@ description: 通过 Nexus 运行已写好的用例，读取执行 Scout 的记�
 
 工作流读取时会按回执写入 `observed_dispositions`，并给构建不符、历史样本和可接受差异各放一条编辑中的草稿。`product_mismatch` 不会自动记成缺陷。正式回执出来后仍用同一 `workflow_id` 对这条用例 `agent_workflow_finish`，`stage=verification`，带上 Scout 的 `task_id` 和回执里的 `disposition`。`precondition` 要分成 `precondition_creatable` 或 `precondition_historical`。之后只从 `coverage.next_units` 取下一批正式用例。`script_repair` 和 `accepted_difference` 先改脚本或用例并完成一轮 authoring，才会出现在 `script_rerun` 和 `next_units`。`bug`、`precondition_historical`、`build_mismatch` 不要再放进 `case_run`。缺陷草稿用 `agent_workflow_finding` 保持 editing，把步骤、对应用例、预期、实际和截图证据写全，并在对话里原样给用户看；不要向外部缺陷系统提交。需求或设计稿要求的文案和界面位置记 `strict=true` 且 `kind=bug`。
 
-需求可以结束的条件是 `coverage.testing_closed=true`。`all_verified=true` 仍表示全部正式通过。`testing_closed` 且未全部通过时，按 `disposition_counts` 报告通过、产品不符、待改脚本、可准备前置、历史样本、构建不符和未执行，不能合成一句「有缺口」。
+需求可以结束的条件是 `coverage.testing_closed=true`。`all_verified=true` 仍表示全部正式通过。`testing_closed` 且未全部通过时，按 `disposition_counts` 报告通过、产品不符、待改脚本、可准备前置、历史样本、构建不符和未执行，不能合成一句「有缺口」。结束报告调用 `agent_workflow_report(final=true)` 时必须传 `closeout`，正文包含「通过」「可接受差异」「缺陷草稿」「仍未测」四段，不能写 PASS/FAIL 数量，也不能问用户接着做哪块。
 
 其余按返回的 `summary` 原样转述。脚本问题改完要回到 `write-test-cases` 和 `check-test-cases`，重新 push 再跑。
 

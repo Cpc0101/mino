@@ -1,3 +1,8 @@
+## 0.1.33 · 2026-11-28
+
+- 结束报告的 `closeout` 必须包含通过、可接受差异、缺陷草稿、仍未测。指定构建可使用 https `package_url`。
+- 配套 MinoScout 0.1.178、MinoNexus 0.1.152、MinoWorkbench 0.0.83。安装后新会话加载。
+
 ## 0.1.32 · 2026-11-28
 
 - 空格、大小写和连写永远不是缺陷。Best Sellers 与 Bestsellers 改用例，表格里的 FAIL 和「需求为…」备注不能当成需求正文。
