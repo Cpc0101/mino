@@ -138,11 +138,13 @@ description: 通过 Nexus 运行已写好的用例，读取执行 Scout 的记�
 | `unconfirmed` | 先读封存记录里的 `test_report.attribution` 和断言。没有新事实不重跑 |
 | `verified` | 封存证据有效，继续下一条 |
 
-需求指定了构建时，`case_run` 传 `expected_build`。正式脚本在业务断言前调用 `app.version()`。Scout 写入 `tested_build`，并在与 `expected_build` 不一致或未读取时把这次执行收成 `build_mismatch`，不保留原先的通过。渠道不支持读版本时不能补写版本号。
+需求指定了构建时，`case_run` 传 `expected_build`。正式脚本在业务断言前调用 `app.version()`。用例输入里有 `package_path` 且当前版本不符时，`version()` 会安装这个本地包再读一次版本。没有安装包路径时仍收成 `build_mismatch`。Scout 写入 `tested_build`，并在与 `expected_build` 不一致或未读取时把这次执行收成 `build_mismatch`，不保留原先的通过。渠道不支持读版本时不能补写版本号。
 
-界面外的预期在对应 `source_ref` 的 `check` 里调用 `case.nexus.fact(actual, expected)`。`actual is None` 是前置不足，不是产品失败。不要用 `on_page` 代替这条事实。
+`app.expect_text` 默认接受空格、大小写和连写差异（例如用例写 Best Sellers、界面是 Bestsellers），记为 `accepted_difference` 并让该断言通过。需求或设计稿要求的原文用 `strict=True`，不一致仍失败。不要用子串或同义词放宽。
 
-正式回执出来后，用同一 `workflow_id` 对这条用例 `agent_workflow_finish`，`stage=verification`，带上 Scout 的 `task_id` 和回执里的 `disposition`。`precondition` 要分成 `precondition_creatable` 或 `precondition_historical`。之后只从 `coverage.next_units` 取下一批正式用例。`script_repair` 和 `accepted_difference` 先改脚本或用例并完成一轮 authoring，才会出现在 `script_rerun` 和 `next_units`。`bug`、`precondition_historical`、`build_mismatch` 不要再放进 `case_run`。缺陷草稿用 `agent_workflow_finding` 保持 editing，把步骤、对应用例、预期、实际和截图证据写全，并在对话里原样给用户看；不要向外部缺陷系统提交。需求或设计稿要求的文案和界面位置记 `strict=true` 且 `kind=bug`。
+界面外的预期在对应 `source_ref` 的 `check` 里调用 `case.nexus.fact(actual, expected)`。`actual is None` 是历史或界面外事实不足（`precondition_historical`），不是产品失败，也不能现造。不要用 `on_page` 代替这条事实。
+
+工作流读取时会按回执写入 `observed_dispositions`，并给构建不符、历史样本和可接受差异各放一条编辑中的草稿。`product_mismatch` 不会自动记成缺陷。正式回执出来后仍用同一 `workflow_id` 对这条用例 `agent_workflow_finish`，`stage=verification`，带上 Scout 的 `task_id` 和回执里的 `disposition`。`precondition` 要分成 `precondition_creatable` 或 `precondition_historical`。之后只从 `coverage.next_units` 取下一批正式用例。`script_repair` 和 `accepted_difference` 先改脚本或用例并完成一轮 authoring，才会出现在 `script_rerun` 和 `next_units`。`bug`、`precondition_historical`、`build_mismatch` 不要再放进 `case_run`。缺陷草稿用 `agent_workflow_finding` 保持 editing，把步骤、对应用例、预期、实际和截图证据写全，并在对话里原样给用户看；不要向外部缺陷系统提交。需求或设计稿要求的文案和界面位置记 `strict=true` 且 `kind=bug`。
 
 需求可以结束的条件是 `coverage.testing_closed=true`。`all_verified=true` 仍表示全部正式通过。`testing_closed` 且未全部通过时，按 `disposition_counts` 报告通过、产品不符、待改脚本、可准备前置、历史样本、构建不符和未执行，不能合成一句「有缺口」。
 
@@ -160,7 +162,21 @@ description: 通过 Nexus 运行已写好的用例，读取执行 Scout 的记�
 
 ## 3. 在对话里怎么汇报
 
-先读 `task_get.statistics` 并给测试结论：本次用例执行次数（多设备分别计）、实际通过/失败/阻塞/未执行数及原文预期的通过/未通过/未核验/未执行。新摘要 `test_report` 是 Scout 从本次事实生成的业务索引；其中 suspected_product 是有待归因的业务差异，不能说成已确认产品缺陷。断言总数包含页面身份及辅助检查，不能当作通过用例数或预期数。
+用例多半是 Agent 按原文写的，不能把脚本里的文案或控件位置原样当成产品标准。只有需求或设计稿明确要求的文案、明确要求的界面位置，才按原文强制核对。其余和实际界面不一致时，先分成两类，两类都要告诉用户：
+
+- **可接受的小差异**：空格、大小写、同义标题、未要求的位置。例如实际是 Bestsellers，用例写成 Best Sellers，且需求没有规定这个拼写。改用例和脚本，记 `accepted_difference`，不要把这条写成 FAIL 或产品缺陷。
+- **缺陷**：要求的文案或位置不对，或功能本身错误。记 `bug`，不改用例来掩盖。调用 `agent_workflow_finding` 写成编辑中的草稿，对话里按下面的模板列出。草稿状态是 editing，不向外部缺陷系统提交。
+
+复测结论按这个结构写，不要只列 PASS/FAIL：
+
+```text
+通过：……
+可接受差异：用例 ID · 用例写了什么 · 实际是什么 · 为何允许 · 已改用例
+缺陷草稿（编辑中，未提交）：标题 · 用例 ID · 步骤 · 预期 · 实际 · 截图证据
+仍未测：用例 ID · 原因
+```
+
+先读 `task_get.statistics` 并给测试结论：本次用例执行次数（多设备分别计）、实际通过/失败/阻塞/未执行数及原文预期的通过/未通过/未核验/未执行。新摘要 `test_report` 是 Scout 从本次事实生成的业务索引；其中 suspected_product 只是待分类的观察，不能直接写成产品缺陷。断言总数包含页面身份及辅助检查，不能当作通过用例数或预期数。
 
 具体问题逐项写「原文引用与要求 → 实际执行的判定 → 实际观察 → 判定与归因依据 → 证据」。`source_ref` 相同但判定内容不符时标为映射问题，不能把登录通过算作模板等业务预期通过；不调用模型给错误映射补一个肯定结论。单列自动化问题、环境阻塞、原文差异、未验证项。定位、等待、模型请求和编写修复只放诊断，不混入业务问题。带上阶段、环境、原执行 Scout、revision 和 attempt；编写探路不计作正式回归。优先使用服务返回的 Workbench report_url，不猜链接。
 
