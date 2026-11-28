@@ -17,6 +17,10 @@ description: 通过 Nexus 运行已写好的用例，读取执行 Scout 的记�
 
 开跑前用一两句话告诉用户：将跑哪些用例、哪台设备、哪个环境。
 
+## 资源闭环
+
+缺少测试资源、保存生成文件或恢复依赖用例时，必须遵循 [测试资产与主动准备](../mino/references/test-assets.md)。准备成功不替代正式验证；不要把“当前账号没有”直接收敛成任务结束。
+
 ## 全集范围门禁（开跑前）
 
 用户说“继续测试”“跑所有用例”或“验收这个需求”时，执行范围仍是需求原文的全部用例，不是当前 `tests/` 目录里已经有的脚本。开跑前必须先从飞书 CLI 或其他原文来源机器读取完整用例 ID，并读取或初始化对应 workflow 的 `expected_units` 与 `coverage`；不得用 `case_list`、当前目录文件数或设备能跑通的子集反推需求全集。
@@ -74,7 +78,7 @@ description: 通过 Nexus 运行已写好的用例，读取执行 Scout 的记�
 | `queued` | 等 5s 再查；不重复 `case_run` |
 | `running` | 可读事件；不打断、不改脚本 |
 | `pass` | 汇报通过 |
-| `fail` | 先看 `cases[].status` 和 `reason_code`，再归因 |
+| `fail` | 先看回执 `disposition`，再按归属处理；不要把所有失败都重跑 |
 | `blocked` | 区分缺信息、无有效断言、节点断线或资源隔离；依据 reason_code 处理 |
 | `cancelled` | 报告取消；不擅自重跑 |
 
@@ -118,6 +122,29 @@ description: 通过 Nexus 运行已写好的用例，读取执行 Scout 的记�
 | `node_disconnected` / `scout_restarted` / `worker_interrupted` | 读取最后持久记录，确认执行边界；不自动重放 |
 | `record_not_found` / `evidence_temporarily_unavailable` | 区分记录不存在与原 Scout 离线；不输出通过结论 |
 | `write_outcome_unknown` | 保持隔离，先获取可确认的停止与设备状态证据 |
+
+回执里的 `disposition` 决定下一步，不再把根因一律留成未确认：
+
+| `disposition` | Agent 怎么做 |
+|---|---|
+| `script_repair` | 只改定位或脚本，静态检查后 push，用新的正式 `case_run` 只跑这些 `case_id`。不改原文预期，也不把它写成产品缺陷 |
+| `bug` | 需求或设计稿要求的文案、要求的界面位置，或实际功能错误。保持失败，不改用例来掩盖。用 `agent_workflow_finding` 保存编辑中的草稿，不向外部缺陷系统提交 |
+| `accepted_difference` | Agent 编写的用例和实际界面有小差异，且不是被要求的文案或位置。告诉用户差异，改用例和脚本，完成 authoring 后再正式跑这几条 |
+| `product_mismatch` | 尚未分成 bug 或可接受差异。先看原文和设计稿是否要求了文案或位置，再改记为上面两类，不要直接停成产品缺陷 |
+| `source_repair` | 按 `source_ref` 把操作和预期对齐。页面打开、登录通过不能充当另一条业务预期 |
+| `precondition` | 能在界面里建立的，`agent_workflow_finish` 传 `disposition=precondition_creatable`，走准备任务；准备完成后再正式跑这几条。原文要的是历史样本时传 `precondition_historical` 并向用户求助，不能现造 |
+| `build_mismatch` | 本次 `tested_build` 与 `case_run.expected_build` 不一致，或还没读到版本。有本地安装包就 `app.install` 后再 `version()`；没有包路径就求助。不要写成产品失败 |
+| `excluded` | 核对为什么没执行。缺前置不要记成跳过 |
+| `unconfirmed` | 先读封存记录里的 `test_report.attribution` 和断言。没有新事实不重跑 |
+| `verified` | 封存证据有效，继续下一条 |
+
+需求指定了构建时，`case_run` 传 `expected_build`。正式脚本在业务断言前调用 `app.version()`。Scout 写入 `tested_build`，并在与 `expected_build` 不一致或未读取时把这次执行收成 `build_mismatch`，不保留原先的通过。渠道不支持读版本时不能补写版本号。
+
+界面外的预期在对应 `source_ref` 的 `check` 里调用 `case.nexus.fact(actual, expected)`。`actual is None` 是前置不足，不是产品失败。不要用 `on_page` 代替这条事实。
+
+正式回执出来后，用同一 `workflow_id` 对这条用例 `agent_workflow_finish`，`stage=verification`，带上 Scout 的 `task_id` 和回执里的 `disposition`。`precondition` 要分成 `precondition_creatable` 或 `precondition_historical`。之后只从 `coverage.next_units` 取下一批正式用例。`script_repair` 和 `accepted_difference` 先改脚本或用例并完成一轮 authoring，才会出现在 `script_rerun` 和 `next_units`。`bug`、`precondition_historical`、`build_mismatch` 不要再放进 `case_run`。缺陷草稿用 `agent_workflow_finding` 保持 editing，把步骤、对应用例、预期、实际和截图证据写全，并在对话里原样给用户看；不要向外部缺陷系统提交。需求或设计稿要求的文案和界面位置记 `strict=true` 且 `kind=bug`。
+
+需求可以结束的条件是 `coverage.testing_closed=true`。`all_verified=true` 仍表示全部正式通过。`testing_closed` 且未全部通过时，按 `disposition_counts` 报告通过、产品不符、待改脚本、可准备前置、历史样本、构建不符和未执行，不能合成一句「有缺口」。
 
 其余按返回的 `summary` 原样转述。脚本问题改完要回到 `write-test-cases` 和 `check-test-cases`，重新 push 再跑。
 

@@ -83,6 +83,10 @@ python3 "<mino-skill-dir>/scripts/install_routing_policy.py" --check
 
 > `0.1.15` 及更早版本还没有这个统一入口，无法由本技能自动完成首次预检。先按 `update-skills` 引导安装一次 `0.1.16+`，安装同样由 Agent 在用户确认后执行，不要求用户复制命令；再新开会话，之后才由启动门禁自动检查。
 
+## 资源准备与参数自修
+
+缺资源或内部参数错误时先读 [测试资产与主动准备](references/test-assets.md)。当前电脑/账号没有素材不能作为停止理由；在现有授权和预算内查询、探索、准备、入库并恢复，独立用例继续。内部工具参数由 Agent 修正，不向用户索要 plugin、session 或重复已答的目标信息。
+
 ## 常用后续技能
 
 需要多轮需求分析、脚本编写、数据准备或执行调试时，使用 [Agent 进度与预算](references/workflow-ledger.md) 中的 Nexus MCP 记录。先记录本轮目标和预算，按返回的 allowed/next 收敛调查；相同缺口无新证据不重复申请或重跑。Agent 决定调查和补数方式，Nexus 只保存进度；进度不替代测试结论。
@@ -104,7 +108,7 @@ python3 "<mino-skill-dir>/scripts/install_routing_policy.py" --check
 
 - 用户要求“写所有用例”“继续测试”或“跑全部用例”时，必须先用 Mino MCP `cli_query` 的 `feishu` CLI（或其他原文来源 CLI）机器读取完整 ID 清单，再以 `expected_units` 初始化 Nexus workflow；禁止用 Computer Use、浏览器截图或手工抄页面代替正文读取。每批从 `coverage.next_units` 继续；只有 `all_implemented=true` 才能说脚本全集写齐，只有 `all_verified=true` 才能说正式全集通过。`implementation_complete`/`verification_complete` 仍可能包含 blocked_units，`complete` 只是前者的兼容别名。当前文件数不是全集，`case_ids=[]` 也只代表当前目录脚本，不得只跑/写几条就报告全部完成。
 - MCP 工具名把点写成下划线，例如 `agent.guide` 是 `agent_guide`。
-- 先查项目、应用、设备和渠道，再 `case_run`；参数缺失就问，不要猜。
+- 先查项目、应用、设备和渠道，再 `case_run`；内部参数缺失先查 schema 和已知映射自行修正，只对真正的业务歧义或授权缺口提问，不猜值。
 - 编写工作区由本机 Agent 编辑；`debug_case` 直接绑定该目录，不拉仓、不要求 commit。正式 `case_run` 从固定 Git 版本进入独立执行工作区，按 task_id / attempt 保存源码与运行数据。Nexus MCP 不编辑工作区文件。
 - 新会话先观察并验证定位，再扩展用例；远端节点不承担编写调试。调试工具未部署时如实说明，不能宣称具备保留现场能力。
 - push 前运行 `mino-scout check --require-cases .`，有可操作问题就修复后重跑。

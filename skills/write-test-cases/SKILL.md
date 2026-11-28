@@ -21,6 +21,10 @@ description: 将已有人工用例实现为可复用的 MinoScout Python 脚本�
 python -c "import mino_scout, pathlib; print(pathlib.Path(mino_scout.__file__).parent / 'runtime' / 'script_exec.py')"
 ```
 
+## 资源闭环
+
+缺少测试资源、保存生成文件或恢复依赖用例时，必须遵循 [测试资产与主动准备](../mino/references/test-assets.md)。准备成功不替代正式验证；不要把“当前账号没有”直接收敛成任务结束。
+
 ## 1. 写法
 
 设备动作不挂在 `case` 上。先把被测应用实例化，再通过实例操作：
@@ -38,8 +42,11 @@ def run(case):
     with case.nexus.do("2-2 点击快拍按钮", source_ref="S2"):
         camera.tap("splash.quick_snap")             # page_key.control_id，页面在 pages/camera/
     with case.nexus.check("进入取景页面", source_ref="E1"):
+        camera.version()
         camera.on_page("viewfinder")
 ```
+
+`version()` 读取本机已安装的被测包并写入本次 `tested_build`。正式用例在业务断言前调用一次。`case_run` 若带了 `expected_build`，读到的版本对不上时本次不会通过。渠道不支持时保留失败原因，不要手写版本号。界面上看不到的预期用 `case.nexus.fact(actual, expected)`；拿不到事实时传 `None`，这是前置不足。不要用 `on_page` 代替。
 
 三类对象：
 
